@@ -32,13 +32,16 @@ save_f = './models/autoencoder'
 PRINT_FREQ = 200
 TEST_FREQ = 200
 SAVE_FREQ = 2000
+BATCH_SIZE = 5
+IM_S = 1024
+IM_CHANNELS = 3
 tf.reset_default_graph()
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 with tf.Session(config=config) as sess:
     print('Building model...')
-    fb_model = FaceBox(sess, (5, 1024, 1024, 3), None)
+    fb_model = FaceBox(sess, (BATCH_SIZE, IM_S, IM_S, IM_CHANNELS), None)
     print('Num params: ', count_number_trainable_params())
     saver = tf.train.Saver(tf.global_variables(), max_to_keep=5, keep_checkpoint_every_n_hours=2)
     try:
