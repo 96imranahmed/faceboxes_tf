@@ -182,10 +182,14 @@ class FaceBox(object):
         l, c = self.build_anchor(conv_4_2, 1, 'conv_4_2')
         self.bbox_locs.append(l)
         self.bbox_confs.append(c)
-        
-        out_locs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 4]) for i in self.bbox_locs], axis = -2)
-        out_confs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 2]) for i in self.bbox_confs], axis = -2)
 
-        print('Output loc shapes' , out_locs.get_shape())
-        print('Output conf shapes' , out_confs.get_shape())
+        self.out_locs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 4]) for i in self.bbox_locs], axis = -2)
+        self.out_confs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 2]) for i in self.bbox_confs], axis = -2)
+
+        print('Output loc shapes' , self.out_locs.get_shape())
+        print('Output conf shapes' , self.out_confs.get_shape())
+
+        # Process inputs
+        self.locs_targets =  tf.placeholder(tf.float32, shape = self.out_locs.get_shape(), name = "targets_locs")
+        self.conf_targets =  tf.placeholder(tf.float32, shape = self.out_confs.get_shape(), name = "targets_confs")
 
