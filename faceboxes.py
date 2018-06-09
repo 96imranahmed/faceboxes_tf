@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 from model import FaceBox
+import anchors
 
 def count_number_trainable_params(scope = ""):
     '''
@@ -41,7 +42,7 @@ config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 with tf.Session(config=config) as sess:
     print('Building model...')
-    fb_model = FaceBox(sess, (BATCH_SIZE, IM_S, IM_S, IM_CHANNELS), None)
+    fb_model = FaceBox(sess, (BATCH_SIZE, IM_S, IM_S, IM_CHANNELS), anchors.boxes_vec.shape)
     print('Num params: ', count_number_trainable_params())
     saver = tf.train.Saver(tf.global_variables(), max_to_keep=5, keep_checkpoint_every_n_hours=2)
     try:

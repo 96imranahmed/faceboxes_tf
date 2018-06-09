@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import anchors
 
 class FaceBox(object):
     def __init__(self, sess, input_shape, anchors):
@@ -7,6 +8,7 @@ class FaceBox(object):
         self.input_shape = input_shape
         self.base_init = tf.truncated_normal_initializer(stddev=0.1) # Initialise weights
         self.reg_init = tf.contrib.layers.l2_regularizer(scale=0.1) # Initialise regularisation
+        self.anchor_len = anchors[0]
         self.build_graph()
     
     def CReLU(self, in_x, name):
@@ -189,7 +191,5 @@ class FaceBox(object):
         print('Output loc shapes' , self.out_locs.get_shape())
         print('Output conf shapes' , self.out_confs.get_shape())
 
-        # Process inputs
-        self.locs_targets =  tf.placeholder(tf.float32, shape = self.out_locs.get_shape(), name = "targets_locs")
-        self.conf_targets =  tf.placeholder(tf.float32, shape = self.out_confs.get_shape(), name = "targets_confs")
-
+        self.bbox_anchors = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 4), name = 'bbox_anchors')
+        self.bbox_targets = tf.placeholder(tf.float32, shape = (None, None, 4), name = 'bbox_targets')

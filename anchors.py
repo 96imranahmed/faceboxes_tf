@@ -88,7 +88,7 @@ def compute_iou_tf(tb1, tb2):
     boxBArea = (x22 - x21 + 1) * (y22 - y21 + 1)
 
     # Fix divide by 0 errors
-    iou = interArea / (boxAArea + tf.transpose(boxBArea) - interArea +0.0001))
+    iou = interArea / (boxAArea + tf.transpose(boxBArea) - interArea +0.0001)
     return iou
 
 def compute_iou_np(bboxes1, bboxes2):
@@ -107,7 +107,7 @@ def compute_iou_np(bboxes1, bboxes2):
     boxBArea = (x22 - x21 + 1) * (y22 - y21 + 1)
 
     # Fix divide by 0 errors
-    iou = interArea / (boxAArea + np.transpose(boxBArea) - interArea +0.0001))
+    iou = interArea / (boxAArea + np.transpose(boxBArea) - interArea +0.0001)
     return iou
 
 boxes_vec, boxes_lst, stubs = get_boxes(CONFIG)
