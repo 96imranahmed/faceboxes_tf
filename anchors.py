@@ -1,6 +1,7 @@
 import numpy as np
 import itertools
 import cv2
+import tensorflow as tf
 
 # Anchor configuration
 CONFIG = [[1024, 1024, 32, 32, 32, 32, 4], 
@@ -71,6 +72,42 @@ def transform_ltbr_to_lbwh(box):
     c_p = [box[0], box[1] + height, width, -1*height]
     return c_p
 
+def compute_iou_tf(tb1, tb2):
+    # Extracted from: https://gist.github.com/vierja/38f93bb8c463dce5500c0adf8648d371
+    x11, y11, x12, y12 = tf.split(tb1, 4, axis=1)
+    x21, y21, x22, y22 = tf.split(tb2, 4, axis=1)
 
+    xA = tf.maximum(x11, tf.transpose(x21))
+    yA = tf.maximum(y11, tf.transpose(y21))
+    xB = tf.minimum(x12, tf.transpose(x22))
+    yB = tf.minimum(y12, tf.transpose(y22))
+
+    interArea = tf.maximum((xB - xA + 1), 0) * tf.maximum((yB - yA + 1), 0)
+
+    boxAArea = (x12 - x11 + 1) * (y12 - y11 + 1)
+    boxBArea = (x22 - x21 + 1) * (y22 - y21 + 1)
+
+    # Fix divide by 0 errors
+    iou = interArea / (boxAArea + tf.transpose(boxBArea) - interArea +0.0001))
+    return iou
+
+def compute_iou_np(bboxes1, bboxes2):
+    # Extracted from: https://medium.com/@venuktan/vectorized-intersection-over-union-iou-in-numpy-and-tensor-flow-4fa16231b63d
+    x11, y11, x12, y12 = np.split(bboxes1, 4, axis=1)
+    x21, y21, x22, y22 = np.split(bboxes2, 4, axis=1)
+
+    xA = np.maximum(x11, np.transpose(x21))
+    yA = np.maximum(y11, np.transpose(y21))
+    xB = np.minimum(x12, np.transpose(x22))
+    yB = np.minimum(y12, np.transpose(y22))
+
+    interArea = np.maximum((xB - xA + 1), 0) * np.maximum((yB - yA + 1), 0)
+
+    boxAArea = (x12 - x11 + 1) * (y12 - y11 + 1)
+    boxBArea = (x22 - x21 + 1) * (y22 - y21 + 1)
+
+    # Fix divide by 0 errors
+    iou = interArea / (boxAArea + np.transpose(boxBArea) - interArea +0.0001))
+    return iou
 
 boxes_vec, boxes_lst, stubs = get_boxes(CONFIG)
