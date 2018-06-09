@@ -36,6 +36,13 @@ def get_anchor_boxes(shape_dim_x, shape_dim_y, space_x, space_y, scale_x, scale_
         anchor_boxes[h, w] = densify(cx, cy, scale_x_norm, scale_y_norm, densify_rate)
     return anchor_centers, anchor_boxes
 
+def get_shape_stub(shape_dim_x, shape_dim_y, space_x, space_y, densify_rate):
+    step_x_norm = space_x/shape_dim_x
+    step_y_norm = space_y/shape_dim_y
+    dim_x = int(1/step_x_norm)
+    dim_y = int(1/step_y_norm)
+    return [dim_y, dim_x, densify_rate**2]
+
 def transform_ltbr_to_lbwh(box):
     # Transforms from (left, top, bottom, right) - (0, 0) top left, to (left, bottom, width, height) - (0, 0) top left
     # Used to plot using default rectangle plot in Matplotlib
