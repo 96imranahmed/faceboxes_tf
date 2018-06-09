@@ -94,6 +94,9 @@ class FaceBox(object):
             , ' anchor loc shape: ', bbox_loc_conv.get_shape())
         return bbox_loc_conv, bbox_class_conv
 
+    def generate_outputs(self, boxes, targets):
+        return None, None
+
     def build_graph(self):
         # Process inputs
         self.inputs =  tf.placeholder(tf.float32, shape = (None, self.input_shape[1], self.input_shape[2], self.input_shape[3]), name = "inputs")
@@ -101,8 +104,8 @@ class FaceBox(object):
         DEBUG = True
         if DEBUG: print('Input shape: ', self.inputs.get_shape())
             
-        self.bbox_locs = []
-        self.bbox_confs = []
+        bbox_locs = []
+        bbox_confs = []
 
         # Rapidly Digested Convolutional Layers
         print('Building RDCL...')
@@ -137,8 +140,8 @@ class FaceBox(object):
         
         if DEBUG: print('Inception 3 anchors...')
         l, c = self.build_anchor(incept_3, 21, 'incept_3')
-        self.bbox_locs.append(l)
-        self.bbox_confs.append(c)
+        bbox_locs.append(l)
+        bbox_confs.append(c)
 
         print('Building MSCL...')
         conv_3_1 = tf.layers.conv2d(incept_3, 128, 
@@ -159,8 +162,8 @@ class FaceBox(object):
 
         if DEBUG: print('Conv 3_2 anchors...')
         l, c = self.build_anchor(conv_3_2, 1, 'conv_3_2')
-        self.bbox_locs.append(l)
-        self.bbox_confs.append(c)
+        bbox_locs.append(l)
+        bbox_confs.append(c)
 
         if DEBUG: print('Conv 3_2 shape: ', conv_3_2.get_shape())
         conv_4_1 = tf.layers.conv2d(conv_3_2, 128, 
@@ -182,14 +185,15 @@ class FaceBox(object):
 
         if DEBUG: print('Conv 4_2 anchors...')
         l, c = self.build_anchor(conv_4_2, 1, 'conv_4_2')
-        self.bbox_locs.append(l)
-        self.bbox_confs.append(c)
+        bbox_locs.append(l)
+        bbox_confs.append(c)
 
-        self.out_locs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 4]) for i in self.bbox_locs], axis = -2)
-        self.out_confs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 2]) for i in self.bbox_confs], axis = -2)
+        self.out_locs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 4]) for i in bbox_locs], axis = -2)
+        self.out_confs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 2]) for i in bbox_confs], axis = -2)
 
         print('Output loc shapes' , self.out_locs.get_shape())
         print('Output conf shapes' , self.out_confs.get_shape())
 
         self.bbox_anchors = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 4), name = 'bbox_anchors')
         self.bbox_targets = tf.placeholder(tf.float32, shape = (None, None, 4), name = 'bbox_targets')
+        self.target_locs, self.target_confs = self.generate_outputs(self.bbox_anchors, self.bbox_targets)
