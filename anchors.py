@@ -72,10 +72,10 @@ def transform_ltbr_to_lbwh(box):
     c_p = [box[0], box[1] + height, width, -1*height]
     return c_p
 
-def compute_iou_tf(tb1, tb2):
+def compute_iou_tf(bboxes1, bboxes2):
     # Extracted from: https://gist.github.com/vierja/38f93bb8c463dce5500c0adf8648d371
-    x11, y11, x12, y12 = tf.split(tb1, 4, axis=1)
-    x21, y21, x22, y22 = tf.split(tb2, 4, axis=1)
+    x11, y11, x12, y12 = tf.split(bboxes1, 4, axis=1)
+    x21, y21, x22, y22 = tf.split(bboxes2, 4, axis=1)
 
     xA = tf.maximum(x11, tf.transpose(x21))
     yA = tf.maximum(y11, tf.transpose(y21))
