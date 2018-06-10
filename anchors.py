@@ -137,10 +137,10 @@ def encode(anchors_all, boxes, threshold = 0.25):
     wid_height = (boxes[:,2:] - boxes[:,:2]) / (anchor_boxes[:, 2:] - anchor_boxes[:, :2]) # Normalise by height/width of anchor boxes
 
     # Turns out variances ensure everything is at same scale from SSD implementation https://github.com/rykov8/ssd_keras/issues/53
-    centers /= anchors.VARIANCES[0]*anchor_boxes[:, 2:] # (??) https://github.com/lxg2015/faceboxes/blob/master/encoderl.py
+    centers /= anchors.VARIANCES[0]*(anchor_boxes[:, 2:] - anchor_boxes[:, :2])  # (??) https://github.com/lxg2015/faceboxes/blob/master/encoderl.py
     wid_height = np.log(wid_height)/anchors.VARIANCES[1] # Empirically determined from SSD implementation
     cat_items = np.concatenate((centers, wid_height), axis = -1)
-
+    print(cat_items)
     locs = np.zeros((anchors_all.shape[0], 4))
     locs[max_iou_ids] = cat_items
     
@@ -150,3 +150,105 @@ def encode(anchors_all, boxes, threshold = 0.25):
     confs = np.eye(2)[np.array(confs, dtype = int)]
     
     return locs, confs
+
+def non_max_suppression(boxes, overlapThresh):
+    # Extracted from: https://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
+	# if there are no boxes, return an empty list
+	if len(boxes) == 0:
+		return []
+
+	if boxes.dtype.kind == "i":
+		boxes = boxes.astype("float")
+ 
+	pick = []
+ 
+	x1 = boxes[:,0]
+	y1 = boxes[:,1]
+	x2 = boxes[:,2]
+	y2 = boxes[:,3]
+ 
+	# compute the area of the bounding boxes and sort the bounding
+	# boxes by the bottom-right y-coordinate of the bounding box
+	area = (x2 - x1 + 1) * (y2 - y1 + 1)
+	idxs = np.argsort(y2)
+ 
+	# keep looping while some indexes still remain in the indexes
+	while len(idxs) > 0:
+		# grab the last index in the indexes list and add the
+		# index value to the list of picked indexes
+		last = len(idxs) - 1
+		i = idxs[last]
+		pick.append(i)
+ 
+		# find the largest (x, y) coordinates for the start of
+		# the bounding box and the smallest (x, y) coordinates
+		# for the end of the bounding box
+		xx1 = np.maximum(x1[i], x1[idxs[:last]])
+		yy1 = np.maximum(y1[i], y1[idxs[:last]])
+		xx2 = np.minimum(x2[i], x2[idxs[:last]])
+		yy2 = np.minimum(y2[i], y2[idxs[:last]])
+ 
+		# compute the width and height of the bounding box
+		w = np.maximum(0, xx2 - xx1 + 1)
+		h = np.maximum(0, yy2 - yy1 + 1)
+ 
+		# compute the ratio of overlap
+		overlap = (w * h) / area[idxs[:last]]
+ 
+		# delete all indexes from the index list that have
+		idxs = np.delete(idxs, np.concatenate(([last],
+			np.where(overlap > overlapThresh)[0])))
+ 
+	# return only the bounding boxes that were picked using the
+	# integer data type
+	return pick
+
+def encode(anchors_all, boxes, threshold = 0.05):
+    global VARIANCES
+    boxes = np.array(boxes)
+    
+    iou_mat = compute_iou_np(anchors_all,np.array(boxes))
+    max_iou = np.max(iou_mat, axis = 0) # Compute Maximum IOU values
+    max_iou_ids = np.argmax(iou_mat, axis = 0) # Compute Maximum IOU indexes
+
+    # Get corresponding anchor locs
+    anchor_boxes = anchors_all[max_iou_ids] 
+
+    centers = (boxes[:, :2] + boxes[:, 2:])/2 - anchor_boxes[:, :2] # Compute centre offset
+    wid_height = (boxes[:,2:] - boxes[:,:2]) / (anchor_boxes[:, 2:] - anchor_boxes[:, :2]) # Normalise by height/width of anchor boxes
+    
+    # Turns out variances ensure everything is at same scale from SSD implementation https://github.com/rykov8/ssd_keras/issues/53
+    centers /= VARIANCES[0]*(anchor_boxes[:, 2:] - anchor_boxes[:, :2])  # (??) https://github.com/lxg2015/faceboxes/blob/master/encoderl.py
+    wid_height = np.log(wid_height)/VARIANCES[1] # Empirically determined from SSD implementation
+    cat_items = np.concatenate((centers, wid_height), axis = -1)
+    
+    locs = np.zeros((anchors_all.shape[0], 4))
+    locs[max_iou_ids] = cat_items
+    
+    confs = np.zeros((anchors_all.shape[0], 1))
+    confs[max_iou_ids] = 1
+    confs[max_iou_ids[max_iou < threshold]] = 0 # Zero-out poor matches
+    confs = np.eye(2)[np.array(confs, dtype = int)]
+    return locs, np.squeeze(confs)
+
+def decode(anchors_all, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh = 0.3):
+    global VARIANCES
+    cxcy = locs[:, :2]*VARIANCES[0]*(anchors_all[:, 2:] - anchors_all[:, :2]) \
+            + anchors_all[:, :2]
+    wh = np.exp(locs[:, 2:]*VARIANCES[1])*(anchors_all[
+        :, 2:] - anchors_all[:, :2])
+    boxes_out = np.concatenate([cxcy-wh/2, cxcy+wh/2], axis = -1)
+
+    # Get only if confidence > 0.05 & keep top 400 boxes
+    conf_ids = np.squeeze(np.argwhere(confs[:, 1] > min_conf))
+    conf_merge = np.stack((conf_ids, confs[conf_ids, 1]), axis = -1)
+    conf_merge = conf_merge[conf_merge[:, 1].argsort()[::-1]]
+    conf_merge = conf_merge[:keep_top, :]
+    conf_ids, conf_vals = conf_merge[:, 0].astype(int), conf_merge[:, 1]
+    # Run NMS on extraced boxes
+    boxes_out = boxes_out[np.array(conf_merge[:, 0], dtype = int)]
+    keep = non_max_suppression(boxes_out, nms_thresh)
+    
+    return boxes_out[keep].astype(int), conf_ids[keep], conf_vals[keep]
+    
+    
