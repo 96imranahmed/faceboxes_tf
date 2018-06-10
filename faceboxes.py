@@ -37,13 +37,20 @@ BATCH_SIZE = 5
 IM_S = 1024
 IM_CHANNELS = 3
 IOU_THRESH = 0.5
+CONFIG = [[1024, 1024, 32, 32, 32, 32, 4], 
+          [1024, 1024, 32, 32, 64, 64, 2],
+          [1024, 1024, 32, 32, 128, 128, 1],
+          [1024, 1024, 64, 64, 256, 256, 1],
+          [1024, 1024, 128, 128, 512, 512, 1]] 
+# NOTE: SSD Variances are set in the anchors.py file
+boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG)
 tf.reset_default_graph()
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
 with tf.Session(config=config) as sess:
     print('Building model...')
-    fb_model = FaceBox(sess, (BATCH_SIZE, IM_S, IM_S, IM_CHANNELS), anchors.boxes_vec.shape, IOU_THRESH)
+    fb_model = FaceBox(sess, (BATCH_SIZE, IM_S, IM_S, IM_CHANNELS), boxes_vec.shape, IOU_THRESH)
     print('Num params: ', count_number_trainable_params())
     saver = tf.train.Saver(tf.global_variables(), max_to_keep=5, keep_checkpoint_every_n_hours=2)
     try:

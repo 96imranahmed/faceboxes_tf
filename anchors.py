@@ -4,11 +4,6 @@ import cv2
 import tensorflow as tf
 
 # Anchor configuration
-CONFIG = [[1024, 1024, 32, 32, 32, 32, 4], 
-          [1024, 1024, 32, 32, 64, 64, 2],
-          [1024, 1024, 32, 32, 128, 128, 1],
-          [1024, 1024, 64, 64, 256, 256, 1],
-          [1024, 1024, 128, 128, 512, 512, 1]] 
 VARIANCES = [0.1, 0.2]
 
 def densify(cx, cy, scale_x_norm, scale_y_norm, factor):
@@ -250,5 +245,3 @@ def decode(anchors_all, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh
     keep = non_max_suppression(boxes_out, nms_thresh)
     
     return boxes_out[keep].astype(int), conf_ids[keep], conf_vals[keep]
-    
-    
