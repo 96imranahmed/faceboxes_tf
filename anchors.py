@@ -9,7 +9,7 @@ CONFIG = [[1024, 1024, 32, 32, 32, 32, 4],
           [1024, 1024, 32, 32, 128, 128, 1],
           [1024, 1024, 64, 64, 256, 256, 1],
           [1024, 1024, 128, 128, 512, 512, 1]] 
-
+VARIANCES = [0.1, 0.2]
 
 def densify(cx, cy, scale_x_norm, scale_y_norm, factor):
     box_width_x = scale_x_norm + (factor - 1)*scale_x_norm/factor 
@@ -36,7 +36,7 @@ def get_boxes(input_config):
         b_out.append(np.reshape(b_cur, (-1, 4)).copy())
     return np.vstack(tuple(b_out)), b_std, shape_stub
     
-def get_anchor_boxes(shape_dim_x, shape_dim_y, space_x, space_y, scale_x, scale_y, densify_rate):
+def get_anchor_boxes(shape_dim_x, shape_dim_y, space_x, space_y, scale_x, scale_y, densify_rate, normalised = False):
     # Returns boxes in (left, top, bottom right) form (same as wider) - (0, 0) top left
     # Coordinates stay consistent with OpenCV
     step_x_norm = space_x/shape_dim_x
@@ -54,7 +54,18 @@ def get_anchor_boxes(shape_dim_x, shape_dim_y, space_x, space_y, scale_x, scale_
         cur_center = (cx, cy)
         anchor_centers[h, w] = cur_center
         anchor_boxes[h, w] = densify(cx, cy, scale_x_norm, scale_y_norm, densify_rate)
-    return anchor_centers, anchor_boxes
+    if normalised:
+        return anchor_centers, anchor_boxes
+    else:
+        a_c_rest = anchor_centers
+        a_c_rest[:, :, 0]*=shape_dim_x
+        a_c_rest[:, :, 1]*=shape_dim_y
+        bx_rest = anchor_boxes
+        bx_rest[:, :, :, 0]*=shape_dim_x
+        bx_rest[:, :, :, 1]*=shape_dim_y
+        bx_rest[:, :, :, 2]*=shape_dim_x
+        bx_rest[:, :, :, 3]*=shape_dim_y
+        return np.round(a_c_rest), np.round(anchor_boxes)
 
 def get_shape_stub(shape_dim_x, shape_dim_y, space_x, space_y, densify_rate):
     step_x_norm = space_x/shape_dim_x
@@ -93,6 +104,8 @@ def compute_iou_tf(bboxes1, bboxes2):
 
 def compute_iou_np(bboxes1, bboxes2):
     # Extracted from: https://medium.com/@venuktan/vectorized-intersection-over-union-iou-in-numpy-and-tensor-flow-4fa16231b63d
+    if np.max(bboxes1) < 1.2 and np.min(bboxes1) > -0.2:
+        raise Warning('Compute IOU doesn\'t support 0-1 normalised values')
     x11, y11, x12, y12 = np.split(bboxes1, 4, axis=1)
     x21, y21, x22, y22 = np.split(bboxes2, 4, axis=1)
 
@@ -110,4 +123,30 @@ def compute_iou_np(bboxes1, bboxes2):
     iou = interArea / (boxAArea + np.transpose(boxBArea) - interArea +0.0001)
     return iou
 
-boxes_vec, boxes_lst, stubs = get_boxes(CONFIG)
+def encode(anchors_all, boxes, threshold = 0.25):
+    boxes = np.array(boxes)
+    
+    iou_mat = anchors.compute_iou_np(anchors_all,np.array(boxes))
+    max_iou = np.max(iou_mat, axis = 0) # Compute Maximum IOU values
+    max_iou_ids = np.argmax(iou_mat, axis = 0) # Compute Maximum IOU indexes
+
+    # Get corresponding anchor locs
+    anchor_boxes = anchors_all[max_iou_ids] 
+
+    centers = (boxes[:, :2] + boxes[:, 2:])/2 - anchor_boxes[:, :2] # Compute centre offset
+    wid_height = (boxes[:,2:] - boxes[:,:2]) / (anchor_boxes[:, 2:] - anchor_boxes[:, :2]) # Normalise by height/width of anchor boxes
+
+    # Turns out variances ensure everything is at same scale from SSD implementation https://github.com/rykov8/ssd_keras/issues/53
+    centers /= anchors.VARIANCES[0]*anchor_boxes[:, 2:] # (??) https://github.com/lxg2015/faceboxes/blob/master/encoderl.py
+    wid_height = np.log(wid_height)/anchors.VARIANCES[1] # Empirically determined from SSD implementation
+    cat_items = np.concatenate((centers, wid_height), axis = -1)
+
+    locs = np.zeros((anchors_all.shape[0], 4))
+    locs[max_iou_ids] = cat_items
+    
+    confs = np.zeros((anchors_all.shape[0], 1))
+    confs[max_iou_ids] = 1
+    confs[max_iou_ids[max_iou < threshold]] = 0 # Zero-out poor matches
+    confs = np.eye(2)[np.array(confs, dtype = int)]
+    
+    return locs, confs

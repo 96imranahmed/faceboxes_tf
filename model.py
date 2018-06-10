@@ -3,12 +3,13 @@ import numpy as np
 import anchors
 
 class FaceBox(object):
-    def __init__(self, sess, input_shape, anchors):
+    def __init__(self, sess, input_shape, anchors, threshold):
         self.sess = sess
         self.input_shape = input_shape
         self.base_init = tf.truncated_normal_initializer(stddev=0.1) # Initialise weights
         self.reg_init = tf.contrib.layers.l2_regularizer(scale=0.1) # Initialise regularisation
         self.anchor_len = anchors[0]
+        self.threshold = threshold
         self.build_graph()
     
     def CReLU(self, in_x, name):
@@ -93,9 +94,6 @@ class FaceBox(object):
         if DEBUG: print(name, 'anchor class shape: ', bbox_class_conv.get_shape()
             , ' anchor loc shape: ', bbox_loc_conv.get_shape())
         return bbox_loc_conv, bbox_class_conv
-
-    def generate_outputs(self, boxes, targets):
-        return None, None
 
     def build_graph(self):
         # Process inputs
@@ -194,6 +192,8 @@ class FaceBox(object):
         print('Output loc shapes' , self.out_locs.get_shape())
         print('Output conf shapes' , self.out_confs.get_shape())
 
-        self.bbox_anchors = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 4), name = 'bbox_anchors')
-        self.bbox_targets = tf.placeholder(tf.float32, shape = (None, None, 4), name = 'bbox_targets')
-        self.target_locs, self.target_confs = self.generate_outputs(self.bbox_anchors, self.bbox_targets)
+        self.target_locs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 4), name = 'target_locs')
+        self.target_confs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 2), name = 'target_confs')
+        # self.bbox_anchors = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 4), name = 'bbox_anchors')
+        # self.bbox_targets = tf.placeholder(tf.float32, shape = (None, None, 4), name = 'bbox_targets')
+        # self.target_locs, self.target_confs = self.generate_outputs(self.bbox_anchors, self.bbox_targets)
