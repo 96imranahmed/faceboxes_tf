@@ -42,7 +42,7 @@ CONFIG = [[1024, 1024, 32, 32, 32, 32, 4],
           [1024, 1024, 32, 32, 128, 128, 1],
           [1024, 1024, 64, 64, 256, 256, 1],
           [1024, 1024, 128, 128, 512, 512, 1]] 
-# NOTE: SSD Variances are set in the anchors.py file
+# NOTE: SSD variances are set in the anchors.py file
 boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG)
 tf.reset_default_graph()
 

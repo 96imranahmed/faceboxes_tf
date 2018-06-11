@@ -95,6 +95,37 @@ class FaceBox(object):
             , ' anchor loc shape: ', bbox_loc_conv.get_shape())
         return bbox_loc_conv, bbox_class_conv
 
+    def hard_negative_mining(self, conf_loss, pos_ids, num_pos, mult = 3):
+        negatives = tf.logical_not(pos_ids)
+        conf_loss_neg = tf.boolean_mask(conf_loss, negatives) # Extract negative confidence losses only
+        conf_loss_pos = tf.boolean_mask(conf_loss, pos_ids)
+
+        n_neg = tf.cast(mult * num_pos, tf.int32)
+        n_neg = tf.maximum(n_neg, tf.shape(conf_loss_neg)[0]) # Cap maximum negative value to # negative boxes
+        conf_loss_k_neg, _ = tf.nn.top_k(conf_loss_neg, k = n_neg, sorted  = True)
+
+        return tf.concat((conf_loss_pos, conf_loss_k_neg), axis = 0)
+
+    def compute_loss(self, loc_preds, conf_preds, loc_true, conf_true):
+        positive_check = tf.cast(tf.greater(conf_true, 0), tf.int32)
+        positive_count = tf.reduce_sum(positive_check)
+
+        pos_ids = tf.reshape(tf.cast(positive_check, tf.bool), (tf.shape(conf_true)[0], self.anchor_len))
+
+        # NOTE: this process collapses batches (each image can have a different # positive masks)
+        pos_locs = tf.boolean_mask(loc_preds, pos_ids)
+        pos_locs_targets = tf.boolean_mask(loc_true, pos_ids)
+        pos_locs_loss = tf.losses.huber_loss(pos_locs_targets, pos_locs) # Smoothed L1 loss
+
+        conf_loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels = conf_true, logits = conf_preds)
+        conf_loss = self.hard_negative_mining(conf_loss, pos_ids, positive_count)
+
+        # If no bounding boxes across all batches, return 0 loss (i.e. skip)
+        loss = tf.cond(tf.equal(positive_count, 0), 
+                lambda: tf.Variable(0, dtype = tf.float32), 
+                lambda: (conf_loss + pos_locs_loss)/positive_count) # Return zero if no positive boxes
+        return loss
+
     def build_graph(self):
         # Process inputs
         self.inputs =  tf.placeholder(tf.float32, shape = (None, self.input_shape[1], self.input_shape[2], self.input_shape[3]), name = "inputs")
@@ -188,12 +219,12 @@ class FaceBox(object):
 
         self.out_locs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 4]) for i in bbox_locs], axis = -2)
         self.out_confs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 2]) for i in bbox_confs], axis = -2)
+        self.p_confs = tf.nn.softmax(self.out_confs)
 
         print('Output loc shapes' , self.out_locs.get_shape())
         print('Output conf shapes' , self.out_confs.get_shape())
 
         self.target_locs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 4), name = 'target_locs')
-        self.target_confs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 2), name = 'target_confs')
-        # self.bbox_anchors = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 4), name = 'bbox_anchors')
-        # self.bbox_targets = tf.placeholder(tf.float32, shape = (None, None, 4), name = 'bbox_targets')
-        # self.target_locs, self.target_confs = self.generate_outputs(self.bbox_anchors, self.bbox_targets)
+        self.target_confs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 1), name = 'target_confs')
+        
+        self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)

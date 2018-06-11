@@ -118,34 +118,6 @@ def compute_iou_np(bboxes1, bboxes2):
     iou = interArea / (boxAArea + np.transpose(boxBArea) - interArea +0.0001)
     return iou
 
-def encode(anchors_all, boxes, threshold = 0.25):
-    boxes = np.array(boxes)
-    
-    iou_mat = anchors.compute_iou_np(anchors_all,np.array(boxes))
-    max_iou = np.max(iou_mat, axis = 0) # Compute Maximum IOU values
-    max_iou_ids = np.argmax(iou_mat, axis = 0) # Compute Maximum IOU indexes
-
-    # Get corresponding anchor locs
-    anchor_boxes = anchors_all[max_iou_ids] 
-
-    centers = (boxes[:, :2] + boxes[:, 2:])/2 - anchor_boxes[:, :2] # Compute centre offset
-    wid_height = (boxes[:,2:] - boxes[:,:2]) / (anchor_boxes[:, 2:] - anchor_boxes[:, :2]) # Normalise by height/width of anchor boxes
-
-    # Turns out variances ensure everything is at same scale from SSD implementation https://github.com/rykov8/ssd_keras/issues/53
-    centers /= anchors.VARIANCES[0]*(anchor_boxes[:, 2:] - anchor_boxes[:, :2])  # (??) https://github.com/lxg2015/faceboxes/blob/master/encoderl.py
-    wid_height = np.log(wid_height)/anchors.VARIANCES[1] # Empirically determined from SSD implementation
-    cat_items = np.concatenate((centers, wid_height), axis = -1)
-    print(cat_items)
-    locs = np.zeros((anchors_all.shape[0], 4))
-    locs[max_iou_ids] = cat_items
-    
-    confs = np.zeros((anchors_all.shape[0], 1))
-    confs[max_iou_ids] = 1
-    confs[max_iou_ids[max_iou < threshold]] = 0 # Zero-out poor matches
-    confs = np.eye(2)[np.array(confs, dtype = int)]
-    
-    return locs, confs
-
 def non_max_suppression(boxes, overlapThresh):
     # Extracted from: https://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
 	# if there are no boxes, return an empty list
@@ -223,10 +195,11 @@ def encode(anchors_all, boxes, threshold = 0.05):
     confs = np.zeros((anchors_all.shape[0], 1))
     confs[max_iou_ids] = 1
     confs[max_iou_ids[max_iou < threshold]] = 0 # Zero-out poor matches
-    confs = np.eye(2)[np.array(confs, dtype = int)]
+    # NOTE: confs is a N x 1 matrix (not one-hot)
     return locs, np.squeeze(confs)
 
 def decode(anchors_all, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh = 0.3):
+    # NOTE: confs is a N x 2 matrix
     global VARIANCES
     cxcy = locs[:, :2]*VARIANCES[0]*(anchors_all[:, 2:] - anchors_all[:, :2]) \
             + anchors_all[:, :2]
