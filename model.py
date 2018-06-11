@@ -107,7 +107,7 @@ class FaceBox(object):
         return tf.concat((conf_loss_pos, conf_loss_k_neg), axis = 0)
 
     def compute_loss(self, loc_preds, conf_preds, loc_true, conf_true):
-        positive_check = tf.cast(tf.greater(conf_true, 0), tf.int32)
+        positive_check = tf.cast(tf.greater(conf_true, 0), tf.float32)
         positive_count = tf.reduce_sum(positive_check)
 
         pos_ids = tf.reshape(tf.cast(positive_check, tf.bool), (tf.shape(conf_true)[0], self.anchor_len))
