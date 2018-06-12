@@ -2,6 +2,7 @@ import tensorflow as tf
 import numpy as np
 from model import FaceBox
 import anchors
+import pickle
 
 def count_number_trainable_params(scope = ""):
     '''
@@ -29,6 +30,7 @@ def get_nb_params_shape(shape):
         nb_params = nb_params*int(dim)
     return nb_params 
 
+data_train_source = './wider_train.p'
 save_f = './models/autoencoder'
 PRINT_FREQ = 200
 TEST_FREQ = 200
@@ -45,6 +47,8 @@ CONFIG = [[1024, 1024, 32, 32, 32, 32, 4],
 # NOTE: SSD variances are set in the anchors.py file
 boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG)
 tf.reset_default_graph()
+
+train_data = pickle.load(file = open(data_train_source, 'rb'))
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True

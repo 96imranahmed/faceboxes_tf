@@ -101,7 +101,7 @@ class FaceBox(object):
         conf_loss_pos = tf.boolean_mask(conf_loss, pos_ids)
 
         n_neg = tf.cast(mult * num_pos, tf.int32)
-        n_neg = tf.maximum(n_neg, tf.shape(conf_loss_neg)[0]) # Cap maximum negative value to # negative boxes
+        n_neg = tf.minimum(n_neg, tf.shape(conf_loss_neg)[0]) # Cap maximum negative value to # negative boxes
         conf_loss_k_neg, _ = tf.nn.top_k(conf_loss_neg, k = n_neg, sorted  = True)
 
         return tf.concat((conf_loss_pos, conf_loss_k_neg), axis = 0)
@@ -219,6 +219,8 @@ class FaceBox(object):
 
         self.out_locs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 4]) for i in bbox_locs], axis = -2)
         self.out_confs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 2]) for i in bbox_confs], axis = -2)
+        self.out_locs = tf.reshape(self.out_locs, [tf.shape(self.out_locs)[0], self.anchor_len, 4])
+        self.out_confs = tf.reshape(self.out_confs, [tf.shape(self.out_confs)[0], self.anchor_len, 2])
         self.p_confs = tf.nn.softmax(self.out_confs)
 
         print('Output loc shapes' , self.out_locs.get_shape())
@@ -228,3 +230,9 @@ class FaceBox(object):
         self.target_confs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 1), name = 'target_confs')
         
         self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)
+        mean_loss = tf.reduce_mean(self.loss)
+        tf.summary.scalar('Loss', mean_loss)
+        self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(self.extra_update_ops):
+            self.train = tf.train.AdamOptimizer(0.01).minimize(mean_loss)
+        self.merged = tf.summary.merge_all()
