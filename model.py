@@ -3,13 +3,12 @@ import numpy as np
 import anchors
 
 class FaceBox(object):
-    def __init__(self, sess, input_shape, anchors, threshold):
+    def __init__(self, sess, input_shape, anchors):
         self.sess = sess
         self.input_shape = input_shape
         self.base_init = tf.truncated_normal_initializer(stddev=0.1) # Initialise weights
         self.reg_init = tf.contrib.layers.l2_regularizer(scale=0.1) # Initialise regularisation
         self.anchor_len = anchors[0]
-        self.threshold = threshold
         self.build_graph()
     
     def CReLU(self, in_x, name):
