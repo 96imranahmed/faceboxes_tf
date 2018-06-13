@@ -230,9 +230,28 @@ class FaceBox(object):
         self.target_confs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 1), name = 'target_confs')
         
         self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)
-        mean_loss = tf.reduce_mean(self.loss)
-        tf.summary.scalar('Loss', mean_loss)
+        self.mean_loss = tf.reduce_mean(self.loss)
+        tf.summary.scalar('Loss', self.mean_loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
-            self.train = tf.train.AdamOptimizer(0.01).minimize(mean_loss)
+            self.train = tf.train.AdamOptimizer(0.01).minimize(self.mean_loss)
         self.merged = tf.summary.merge_all()
+
+    def train_iter(self, anchors_vec, imgs, lbls):
+        locs, confs = anchors.encode_batch(anchors_vec, lbls, threshold = 0.25)
+        feed_dict = {
+            self.inputs: imgs,
+            self.is_training: True,
+            self.target_locs: locs,
+            self.target_confs: confs
+        }
+        pred_confs, pred_locs, summary, _, loss = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.mean_loss], feed_dict = feed_dict)
+        return pred_confs, pred_locs, loss, summary
+    
+    def test_iter(self, imgs):
+        feed_dict = {
+            self.inputs: imgs,
+            self.is_training: False
+        }
+        pred_confs, pred_locs = self.sess.run(self.p_confs, self.out_locs, feed_dict = feed_dict)
+        return pred_confs, pred_locs

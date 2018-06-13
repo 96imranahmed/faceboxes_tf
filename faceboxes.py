@@ -32,6 +32,8 @@ def get_nb_params_shape(shape):
 
 data_train_source = './wider_train.p'
 data_test_source = './wider_test.p'
+data_train_dir = '../WIDER/train_images/'
+data_test_dir = '../WIDER/test_images/'
 save_f = './models/autoencoder'
 PRINT_FREQ = 200
 TEST_FREQ = 200
@@ -55,8 +57,12 @@ train_data = pickle.load(file = open(data_train_source, 'rb'))
 test_data = pickle.load(file = open(data_test_source, 'rb'))
 
 augmenter_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
-svc_train = data.DataService(train_data, True, '../../WIDER/train_images/', (1024, 1024), augmenter_dict)
-svc_test = data.DataService(test_data, False, '../../WIDER/test_images/', (1024, 1024))
+svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict)
+svc_test = data.DataService(test_data, False, data_test_dir, (1024, 1024))
+
+print('Starting augmenter...')
+svc_train.start()
+print('Running model...')
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True
@@ -78,3 +84,36 @@ with tf.Session(config=config) as sess:
         print('Model not found - using default initialisation!')
         sess.run(tf.global_variables_initializer())
     writer = tf.summary.FileWriter('./logs', sess.graph)
+    i = 0
+    train_mAP_pred = []
+    train_loss = []
+    test_mAP_pred = []
+    while (1<2):
+        print(' Iteration ', i, end = '\r')
+        i+=1
+        imgs, lbls = svc_train.pop()
+        pred_confs, pred_locs, loss, summary = fb_model.train_iter(boxes_vec, imgs, lbls)
+        pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs)
+        train_loss.append(loss)
+        train_mAP_pred.append(anchors.compute_mAP(imgs, lbls, pred_boxes))
+        writer.add_summary(summary, i)
+        if i%PRINT_FREQ == 0: 
+            print('Iteration: ', i)
+            print('Mean train loss: ', np.mean(train_loss))
+            print('Mean train mAP: ', np.mean(train_mAP_pred))
+            train_mAP_pred = []
+            train_loss = []
+        if i%TEST_FREQ == 0:
+            for j in range(100):
+                imgs, lbls = svc_test.random_sample(BATCH_SIZE)
+                pred_confs, pred_locs = fb_model.test_iter(imgs)
+                pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs)
+                test_mAP_pred.append(anchors.compute_mAP(imgs, lbls, pred_boxes))
+            print('Mean test mAP: ', np.mean(test_mAP_pred))
+            test_mAP_pred = []
+        if i%SAVE_FREQ == 0:
+            print('Saving model...')
+            saver.save(sess, save_f, global_step = i)
+
+    
+
