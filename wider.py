@@ -34,6 +34,8 @@ for line in anns_file:
     elif stage == 2:
         box = [int(i) for i in line.strip().split()[0:4]]
         box = [box[0], box[1], box[0] + box[2], box[1] + box[3]]
+        if box[0] > box[2]:
+            raise ValueError("Something wrong", box, cur_entry)
         if 'bbox' in cur_entry:
             cur_entry['bbox'].append(box)
         else:
@@ -45,7 +47,9 @@ for line in anns_file:
             data.append(cur_entry)
             cur_entry = {}
 
+# pickle.dump(obj = data, file = open('./wider_train.p', 'wb'))
 pickle.dump(obj = data, file = open('./wider_test.p', 'wb'))
 
-
-
+# The following files contain invalid bboxes (remove negatives): 
+# 54--Rescue/54_Rescue_rescuepeople_54_29.jpg
+# 7--Cheering/7_Cheering_Cheering_7_17.jpg

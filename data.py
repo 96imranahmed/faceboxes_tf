@@ -105,6 +105,8 @@ class DataService(object):
             if DEBUG: print('Post border ', img_cur.shape)
             imgs[i] = img_cur.copy()
             boxes[i] = np.array([[z[0]+x_r, z[1]+y_r, z[2]+x_r, z[3]+y_r] for z in boxes[i]]).copy()
+            # if boxes[i][2] > boxes[i][0]:
+            #     raise ValueError('Something has gone wrong: ', boxes[i], x_r, y_r)
         return imgs, boxes
     
     def bbox_r(self, bbox):

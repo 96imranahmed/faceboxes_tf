@@ -31,6 +31,7 @@ def get_nb_params_shape(shape):
     return nb_params
 
 data_train_source = './wider_train.p'
+data_test_source = './wider_test.p'
 save_f = './models/autoencoder'
 PRINT_FREQ = 200
 TEST_FREQ = 200
@@ -38,6 +39,8 @@ SAVE_FREQ = 2000
 BATCH_SIZE = 5
 IM_S = 1024
 IM_CHANNELS = 3
+N_WORKERS = 12
+MAX_PREBUFF_LIM = 20
 IOU_THRESH = 0.5
 CONFIG = [[1024, 1024, 32, 32, 32, 32, 4], 
           [1024, 1024, 32, 32, 64, 64, 2],
@@ -49,6 +52,11 @@ boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG)
 tf.reset_default_graph()
 
 train_data = pickle.load(file = open(data_train_source, 'rb'))
+test_data = pickle.load(file = open(data_test_source, 'rb'))
+
+augmenter_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
+svc_train = data.DataService(train_data, True, '../../WIDER/train_images/', (1024, 1024), augmenter_dict)
+svc_test = data.DataService(test_data, False, '../../WIDER/test_images/', (1024, 1024))
 
 config = tf.ConfigProto()
 config.gpu_options.allow_growth = True

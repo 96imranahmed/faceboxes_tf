@@ -81,7 +81,7 @@ def transform_ltbr_to_lbwh(box):
 def compute_mAP(imgs, true, preds):
     mAP = []
     for i in range(len(imgs)):
-        i_c = np.squeeze(imgs[i])
+        i_c = np.squeeze(imgs[i]).shape
         img_t = np.zeros((i_c[0], i_c[1], 1))
         img_p = img_t.copy()
         im_out = img_t.copy()
@@ -187,9 +187,9 @@ def non_max_suppression(boxes, overlapThresh):
 	# integer data type
 	return pick
 
-def encode(anchors_all, boxes, threshold = 0.05):
+def encode(anchors_all, boxes, threshold):
     global VARIANCES
-    boxes = np.array(boxes)
+    boxes = np.array(boxes).copy()
     
     iou_mat = compute_iou_np(anchors_all,np.array(boxes))
     max_iou = np.max(iou_mat, axis = 0) # Compute Maximum IOU values
@@ -215,6 +215,22 @@ def encode(anchors_all, boxes, threshold = 0.05):
     # NOTE: confs is a N x 1 matrix (not one-hot)
     return locs, np.squeeze(confs)
 
+def encode_batch(anchors, boxes, threshold):
+    out_locs = []
+    out_confs = []
+    for i in range(len(boxes)):
+        l, c = encode(anchors, boxes[i], threshold)
+        out_locs.append(l)
+        out_confs.append(c)
+    return np.array(out_locs), np.array(out_confs)[:, :, np.newaxis]
+
+def decode_batch(anchors, locs, confs):
+    out_boxes = []
+    for i in range(len(locs)):
+        b, _, _ = decode(anchors, np.squeeze(locs[i]), np.squeeze(confs[i]))
+        out_boxes.append(b)
+    return out_boxes
+
 def decode(anchors_all, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh = 0.3):
     # NOTE: confs is a N x 2 matrix
     global VARIANCES
@@ -226,11 +242,11 @@ def decode(anchors_all, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh
 
     # Get only if confidence > 0.05 & keep top 400 boxes
     conf_ids = np.squeeze(np.argwhere(confs[:, 1] > min_conf))
-    conf_merge = np.stack((conf_ids, confs[conf_ids, 1]), axis = -1)
+    conf_merge = np.reshape(np.stack((conf_ids, confs[conf_ids, 1]), axis = -1), (-1, 2))
     conf_merge = conf_merge[conf_merge[:, 1].argsort()[::-1]]
     conf_merge = conf_merge[:keep_top, :]
     conf_ids, conf_vals = conf_merge[:, 0].astype(int), conf_merge[:, 1]
-    # Run NMS on extraced boxes
+    # Run NMS on extracted boxes
     boxes_out = boxes_out[np.array(conf_merge[:, 0], dtype = int)]
     keep = non_max_suppression(boxes_out, nms_thresh)
     
