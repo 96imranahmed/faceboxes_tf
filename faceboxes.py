@@ -28,7 +28,7 @@ def get_nb_params_shape(shape):
     nb_params = 1
     for dim in shape:
         nb_params = nb_params*int(dim)
-    return nb_params 
+    return nb_params
 
 data_train_source = './wider_train.p'
 save_f = './models/autoencoder'

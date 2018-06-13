@@ -72,9 +72,9 @@ class DataService(object):
         if self.do_augment:
             imgs, boxes = self.augment(imgs, boxes)
         if ret_orig:
-            return imgs, boxes, imgs_orig, boxes_orig
+            return np.array(imgs), boxes, np.array(imgs_orig), boxes_orig
         else:
-            return imgs, boxes
+            return np.array(imgs), boxes
     
     def resize_images(self, imgs, boxes):
         DEBUG = False

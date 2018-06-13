@@ -78,6 +78,23 @@ def transform_ltbr_to_lbwh(box):
     c_p = [box[0], box[1] + height, width, -1*height]
     return c_p
 
+def compute_mAP(imgs, true, preds):
+    mAP = []
+    for i in range(len(imgs)):
+        i_c = np.squeeze(imgs[i])
+        img_t = np.zeros((i_c[0], i_c[1], 1))
+        img_p = img_t.copy()
+        im_out = img_t.copy()
+        # True
+        for box in true[i]:
+            cv2.rectangle(img_t, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)
+        for box in preds[i]:
+            cv2.rectangle(img_p, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)
+        im_out += img_t
+        im_out += img_p
+        mAP.append(np.sum(im_out == 2)/np.sum(im_out > 0))
+    return np.mean(mAP)
+
 def compute_iou_tf(bboxes1, bboxes2):
     # Extracted from: https://gist.github.com/vierja/38f93bb8c463dce5500c0adf8648d371
     x11, y11, x12, y12 = tf.split(bboxes1, 4, axis=1)
