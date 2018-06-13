@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import tensorflow as tf
 import imgaug as ia
+from imgaug import parameters as iap
 from imgaug import augmenters as iaa
 import os
 from random import randint
@@ -39,7 +40,7 @@ class DataService(object):
 
     def spawn(self):
         if self.mp is None: raise RuntimeError('Service was not initialised as a multi-processing obj')
-        print('Spawning', self.mp['n'], ' workers')
+        print('Spawning', self.mp['n'], 'workers')
         self.proc_lst = []
         for i in range(self.mp['n']):
             p = multiprocessing.Process(target = self.worker)
@@ -55,7 +56,7 @@ class DataService(object):
         while True:
             imgs, boxes = self.random_sample(self.mp['b_s'], False)
             if not self.q.full():
-                self.q.put(tuple([imgs boxes]))
+                self.q.put(tuple([imgs, boxes]))
             
     def read_image(self, loc):
         img = cv2.imread(self.data_path + loc.strip())
@@ -113,19 +114,18 @@ class DataService(object):
         ia_bb = [ia.BoundingBoxesOnImage([ia.BoundingBox(x1 = i[0], y1 = i[1], x2 = i[2], y2 = i[3]) for i in boxes[n]], shape = imgs[n].shape) \
                 for n in range(len(imgs))]
         seq = iaa.Sequential([
-            iaa.Affine(rotate=(-180, 180)),
-            iaa.Fliplr(0.5),
-            iaa.Sometimes(0.5, iaa.Scale((0.5, 1.0))),
-            iaa.Sometimes(0.5, iaa.GaussianBlur(sigma=(0.0, 1.0))),
-            iaa.Sometimes(0.95, iaa.SomeOf(1,
-                [iaa.CoarseDropout(p=(0.0, 0.10), size_percent=(0.2, 0.4)),
-                 iaa.CoarseDropout(p=(0.05, 0.15), size_percent=(0.0, 0.2)),
-                 iaa.Dropout(p=(0, 0.20)),
-                 iaa.SaltAndPepper(p=(0, 0.05))])),
             iaa.Sometimes(0.5, iaa.AddElementwise((-20, 20), per_channel=1)),
             iaa.Sometimes(0.5, iaa.AdditiveGaussianNoise(scale=(0, 0.10*255))),
             iaa.Sometimes(0.5, iaa.Multiply((0.75, 1.25), per_channel=1)),
-            iaa.Sometimes(0.5, iaa.MultiplyElementwise((0.75, 1.25)))
+            iaa.Sometimes(0.5, iaa.MultiplyElementwise((0.75, 1.25))),
+            iaa.Sometimes(0.5, iaa.GaussianBlur(sigma=(0.0, 1.0))),
+            iaa.Fliplr(0.5),
+            iaa.Sometimes(0.95, iaa.SomeOf(1,
+                [iaa.CoarseDropout(p=(0.10, 0.25), size_percent=(0.25, 0.5)),
+                 iaa.CoarseDropout(p=(0.0, 0.15), size_percent=(0.1, 0.25)),
+                 iaa.Dropout(p=(0, 0.25)),
+                 iaa.CoarseSaltAndPepper(p=(0, 0.25), size_percent = (0.1, 0.2))])),
+            iaa.Affine(scale = iap.Choice([iap.Uniform(0.4, 1), iap.Uniform(1, 3)]), rotate=(-180, 180))
         ])
         seq_det = seq.to_deterministic()
         image_b_aug = seq_det.augment_images(imgs)
