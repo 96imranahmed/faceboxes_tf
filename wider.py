@@ -4,8 +4,11 @@ import os
 import cv2
 import numpy as np
 
-PATH_TO_TRAIN_DATA = '../WIDER/train_images/'
-PATH_TO_ANNS = '../WIDER/wider_face_train_bbx_gt.txt'
+# PATH_TO_DATA = '../WIDER/train_images/'
+# PATH_TO_ANNS = '../WIDER/wider_face_train_bbx_gt.txt'
+
+PATH_TO_DATA = '../WIDER/test_images/'
+PATH_TO_ANNS = '../WIDER/wider_face_val_bbx_gt.txt'
 
 anns_file = open(PATH_TO_ANNS, "r")
 anns_file = tuple(anns_file)
@@ -19,7 +22,7 @@ for line in anns_file:
     i += 1
     if stage == 0:
         cur_entry['file_path'] = line
-        img = cv2.imread(PATH_TO_TRAIN_DATA + line.strip())
+        img = cv2.imread(PATH_TO_DATA + line.strip())
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         # cur_entry['img'] = img
         stage = (stage+1)%3
@@ -42,7 +45,7 @@ for line in anns_file:
             data.append(cur_entry)
             cur_entry = {}
 
-pickle.dump(obj = data, file = open('./wider_train.p', 'wb'))
+pickle.dump(obj = data, file = open('./wider_test.p', 'wb'))
 
 
 

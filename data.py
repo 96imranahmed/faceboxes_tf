@@ -5,14 +5,58 @@ import imgaug as ia
 from imgaug import augmenters as iaa
 import os
 from random import randint
+import multiprocessing
+import threading
 
 class DataService(object):
-    def __init__(self, source_p, do_augment, data_path, out_size):
+    def __init__(self, source_p, do_augment, data_path, out_size, mp_params = None):
         self.source_p = source_p
         self.do_augment = do_augment
         self.data_path = data_path
         self.out_size = out_size
+        self.mp = mp_params
+        if self.mp is not None:
+            self.q = multiprocessing.Queue(self.mp['lim'])
+    
+    def start(self):
+        if self.mp is None: raise RuntimeError('Service was not initialised as a multi-processing obj')
+        print('Starting parallelised augmentation...')
+        thread = threading.Thread(target = self.spawn)
+        self.is_running = True
+        thread.start()      
 
+    def stop(self):
+        if self.mp is None: raise RuntimeError('Service was not initialised as a multi-processing obj')
+        print('Stopping parallelised augmentation...')
+        [p.terminate() for p in self.proc_lst]
+        self.is_running = False
+
+    def pop(self):
+        if self.mp is None: raise RuntimeError('Service was not initialised as a multi-processing obj')
+        while True:
+            if not self.q.empty():
+                return self.q.get()
+
+    def spawn(self):
+        if self.mp is None: raise RuntimeError('Service was not initialised as a multi-processing obj')
+        print('Spawning', self.mp['n'], ' workers')
+        self.proc_lst = []
+        for i in range(self.mp['n']):
+            p = multiprocessing.Process(target = self.worker)
+            self.proc_lst.append(p)
+            p.start()
+        while self.is_running:
+            pass
+        [p.join() for p in self.proc_lst]
+        self.proc_lst = []
+
+    def worker(self):
+        np.random.seed()
+        while True:
+            imgs, boxes = self.random_sample(self.mp['b_s'], False)
+            if not self.q.full():
+                self.q.put(tuple([imgs boxes]))
+            
     def read_image(self, loc):
         img = cv2.imread(self.data_path + loc.strip())
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
