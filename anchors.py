@@ -89,7 +89,8 @@ def compute_mAP(imgs, true, preds):
         for box in true[i]:
             cv2.rectangle(img_t, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)
         for box in preds[i]:
-            cv2.rectangle(img_p, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)
+            if not np.sum(np.array(box) < 0) > 0:
+                cv2.rectangle(img_p, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)
         im_out += img_t
         im_out += img_p
         mAP.append(np.sum(im_out == 2)/np.sum(im_out > 0))

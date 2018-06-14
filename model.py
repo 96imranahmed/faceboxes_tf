@@ -233,7 +233,7 @@ class FaceBox(object):
         tf.summary.scalar('Loss', self.mean_loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
-            self.train = tf.train.AdamOptimizer(0.01).minimize(self.mean_loss)
+            self.train = tf.train.AdamOptimizer(0.00000001).minimize(self.mean_loss)
         self.merged = tf.summary.merge_all()
 
     def train_iter(self, anchors_vec, imgs, lbls):
@@ -252,5 +252,5 @@ class FaceBox(object):
             self.inputs: imgs,
             self.is_training: False
         }
-        pred_confs, pred_locs = self.sess.run(self.p_confs, self.out_locs, feed_dict = feed_dict)
+        pred_confs, pred_locs = self.sess.run([self.p_confs, self.out_locs], feed_dict = feed_dict)
         return pred_confs, pred_locs

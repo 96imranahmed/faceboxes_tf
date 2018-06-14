@@ -65,7 +65,8 @@ class DataService(object):
     
     def random_sample(self, count, ret_orig = False):
         choices = np.random.choice(self.source_p, size = count)
-        imgs, boxes = [self.read_image(i['file_path']) for i in choices], [i['bbox'] for i in choices]
+        imgs = [self.read_image(i['file_path']) for i in choices]
+        boxes = [i['bbox'] for i in choices]
         imgs, boxes = self.resize_images(imgs, boxes)
         imgs_orig = imgs[:]
         boxes_orig = boxes[:]
