@@ -24,6 +24,7 @@ class FaceBox(object):
                                 kernel_initializer=self.base_init,
                                 kernel_regularizer=self.reg_init,
                                 name = name + 'conv_1_1',
+                                activation = tf.nn.relu,
                                 padding = 'SAME')
         path_2 = tf.layers.max_pooling2d(in_x, [3,3], 1, name = name+'pool_1_2',
                                 padding = 'SAME') # No striding to preserve shape
@@ -33,6 +34,7 @@ class FaceBox(object):
                                 kernel_initializer=self.base_init,
                                 kernel_regularizer=self.reg_init,
                                 name = name + 'conv_1_2',
+                                activation = tf.nn.relu,
                                 padding = 'SAME')
         if DEBUG: print('Path 2 shape: ', path_2.get_shape())
         path_3 = tf.layers.conv2d(in_x, 24, 
@@ -41,6 +43,7 @@ class FaceBox(object):
                                 kernel_initializer=self.base_init,
                                 kernel_regularizer=self.reg_init,
                                 name = name + 'conv_1_3',
+                                activation = tf.nn.relu,
                                 padding = 'SAME')
         path_3 = tf.layers.conv2d(path_3, 32, 
                                 kernel_size = [3, 3],
@@ -48,6 +51,7 @@ class FaceBox(object):
                                 kernel_initializer=self.base_init,
                                 kernel_regularizer=self.reg_init,
                                 name = name + 'conv_2_3',
+                                activation = tf.nn.relu,
                                 padding = 'SAME')
         if DEBUG: print('Path 3 shape: ', path_3.get_shape())
         path_4 = tf.layers.conv2d(in_x, 24, 
@@ -56,6 +60,7 @@ class FaceBox(object):
                         kernel_initializer=self.base_init,
                         kernel_regularizer=self.reg_init,
                         name = name + 'conv_1_4',
+                        activation = tf.nn.relu,
                         padding = 'SAME')
         path_4 = tf.layers.conv2d(path_4, 32, 
                         kernel_size = [3, 3],
@@ -63,13 +68,15 @@ class FaceBox(object):
                         kernel_initializer=self.base_init,
                         kernel_regularizer=self.reg_init,
                         name = name + 'conv_2_4',
+                        activation = tf.nn.relu,
                         padding = 'SAME')
-        path_4 = tf.layers.conv2d(in_x, 32, 
+        path_4 = tf.layers.conv2d(path_4, 32, 
                         kernel_size = [3, 3],
                         strides = 1,
                         kernel_initializer=self.base_init,
                         kernel_regularizer=self.reg_init,
                         name = name + 'conv_3_4',
+                        activation = tf.nn.relu,
                         padding = 'SAME')
         if DEBUG: print('Path 4 shape: ', path_4.get_shape())
         return tf.concat([path_1, path_2, path_3, path_4], axis = -1)
@@ -81,6 +88,7 @@ class FaceBox(object):
                         strides = 1,
                         kernel_initializer=self.base_init,
                         kernel_regularizer=self.reg_init,
+                        activation = None,
                         name = name + '_anchor_loc_conv',
                         padding = 'SAME')
         bbox_class_conv = tf.layers.conv2d(in_x, num_out*2, 
@@ -88,6 +96,7 @@ class FaceBox(object):
                         strides = 1,
                         kernel_initializer=self.base_init,
                         kernel_regularizer=self.reg_init,
+                        activation = None,
                         name = name + '_anchor_conf_conv',
                         padding = 'SAME')
         if DEBUG: print(name, 'anchor class shape: ', bbox_class_conv.get_shape()
@@ -247,11 +256,11 @@ class FaceBox(object):
         tf.summary.scalar('Loss', self.mean_loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
-            self.train = tf.train.AdamOptimizer(0.0001).minimize(self.mean_loss)
+            self.train = tf.train.AdamOptimizer(0.001).minimize(self.mean_loss)
         self.merged = tf.summary.merge_all()
 
     def train_iter(self, anchors_vec, imgs, lbls):
-        locs, confs = anchors.encode_batch(anchors_vec, lbls, threshold = 0.25)
+        locs, confs = anchors.encode_batch(anchors_vec, lbls, threshold = 0.35)
         feed_dict = {
             self.inputs: imgs,
             self.is_training: True,

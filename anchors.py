@@ -4,7 +4,8 @@ import cv2
 import tensorflow as tf
 
 # Anchor configuration
-VARIANCES = [0.1, 0.2]
+SCALE_FACTOR = [10, 5]
+EPSILON = 1e-8
 
 def densify(cx, cy, scale_x_norm, scale_y_norm, factor):
     box_width_x = scale_x_norm + (factor - 1)*scale_x_norm/factor 
@@ -189,7 +190,8 @@ def non_max_suppression(boxes, overlapThresh):
 	return pick
 
 def encode(anchors_all, boxes, threshold):
-    global VARIANCES
+    global SCALE_FACTOR, EPSILON
+
     boxes = np.array(boxes).copy()
     
     iou_mat = compute_iou_np(anchors_all,np.array(boxes))
@@ -199,13 +201,20 @@ def encode(anchors_all, boxes, threshold):
     # Get corresponding anchor locs
     anchor_boxes = anchors_all[max_iou_ids] 
 
-    centers = (boxes[:, :2] + boxes[:, 2:])/2 - anchor_boxes[:, :2] # Compute centre offset
-    wid_height = (boxes[:,2:] - boxes[:,:2]) / (anchor_boxes[:, 2:] - anchor_boxes[:, :2]) # Normalise by height/width of anchor boxes
-    
-    # Turns out variances ensure everything is at same scale from SSD implementation https://github.com/rykov8/ssd_keras/issues/53
-    centers /= VARIANCES[0]*(anchor_boxes[:, 2:] - anchor_boxes[:, :2])  # (??) https://github.com/lxg2015/faceboxes/blob/master/encoderl.py
-    wid_height = np.log(wid_height)/VARIANCES[1] # Empirically determined from SSD implementation
-    cat_items = np.concatenate((centers, wid_height), axis = -1)
+    centers_a = np.array(anchor_boxes[:, 2:] + anchor_boxes[:, :2]).astype(np.float32)/2
+    w_h_a = np.array(anchor_boxes[:, 2:] - anchor_boxes[:, :2]).astype(np.float32)
+    w_h_a += EPSILON
+
+    centers = np.array(boxes[:, :2] + boxes[:, 2:]).astype(np.float32)/2
+    w_h = np.array(boxes[:, 2:] - boxes[:, :2]).astype(np.float32)
+    w_h += EPSILON
+
+    cxcy_out = (centers - centers_a)/w_h_a
+    cxcy_out*=SCALE_FACTOR[0]
+    wh_out = np.log(w_h/w_h_a)
+    wh_out*=SCALE_FACTOR[1]
+
+    cat_items = np.concatenate((cxcy_out, wh_out), axis = -1)
     
     locs = np.zeros((anchors_all.shape[0], 4))
     locs[max_iou_ids] = cat_items
@@ -234,9 +243,20 @@ def decode_batch(anchors, locs, confs):
 
 def decode(anchor_boxes, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh = 0.3, do_nms = False):
     # NOTE: confs is a N x 2 matrix
-    global VARIANCES
-    cxcy = locs[:, :2]*VARIANCES[0]*(anchor_boxes[:, 2:] - anchor_boxes[:, :2]) + anchor_boxes[:, :2]
-    wh = np.exp(locs[:, 2:]*VARIANCES[1])*(anchor_boxes[:, 2:] - anchor_boxes[:, :2])
+    global SCALE_FACTOR
+
+    centers_a = np.array(anchor_boxes[:, 2:] + anchor_boxes[:, :2])/2
+    w_h_a = np.array(anchor_boxes[:, 2:] - anchor_boxes[:, :2])
+
+    cxcy_in = locs[:, :2]
+    wh_in = locs[:, 2:]
+
+    cxcy_in/=SCALE_FACTOR[0]
+    wh_in/= SCALE_FACTOR[1]
+    
+    wh = np.exp(wh_in)*w_h_a
+    cxcy = cxcy_in*w_h_a + centers_a
+
     boxes_out = np.concatenate([cxcy-wh/2, cxcy+wh/2], axis = -1)
 
     # Get only if confidence > 0.05 & keep top 400 boxes
