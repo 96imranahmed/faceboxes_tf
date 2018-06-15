@@ -127,6 +127,17 @@ class FaceBox(object):
         loss = self.hard_negative_mining(conf_loss, l1_loss, pos_ids, positive_count)
         return loss
 
+    def add_weight_decay(self, weight_decay):
+        weight_decay = tf.constant(
+            weight_decay, tf.float32,
+            [], 'weight_decay'
+        )
+        trainable_vars = tf.trainable_variables()
+        kernels = [v for v in trainable_vars if 'weights' in v.name]
+        for K in kernels:
+            x = tf.multiply(weight_decay, tf.nn.l2_loss(K))
+            tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES, x)
+
     def build_graph(self):
         # Process inputs
         self.inputs =  tf.placeholder(tf.float32, shape = (None, self.input_shape[1], self.input_shape[2], self.input_shape[3]), name = "inputs")
@@ -230,8 +241,9 @@ class FaceBox(object):
         self.target_locs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 4), name = 'target_locs')
         self.target_confs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 1), name = 'target_confs')
         
+        self.add_weight_decay(0.001)
         self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)
-        self.mean_loss = tf.reduce_mean(self.loss)
+        self.mean_loss = tf.reduce_mean(self.loss + tf.losses.get_regularization_loss())
         tf.summary.scalar('Loss', self.mean_loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):

@@ -232,13 +232,11 @@ def decode_batch(anchors, locs, confs):
         out_boxes.append(b)
     return out_boxes
 
-def decode(anchors_all, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh = 0.3):
+def decode(anchor_boxes, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh = 0.3, do_nms = False):
     # NOTE: confs is a N x 2 matrix
     global VARIANCES
-    cxcy = locs[:, :2]*VARIANCES[0]*(anchors_all[:, 2:] - anchors_all[:, :2]) \
-            + anchors_all[:, :2]
-    wh = np.exp(locs[:, 2:]*VARIANCES[1])*(anchors_all[
-        :, 2:] - anchors_all[:, :2])
+    cxcy = locs[:, :2]*VARIANCES[0]*(anchor_boxes[:, 2:] - anchor_boxes[:, :2]) + anchor_boxes[:, :2]
+    wh = np.exp(locs[:, 2:]*VARIANCES[1])*(anchor_boxes[:, 2:] - anchor_boxes[:, :2])
     boxes_out = np.concatenate([cxcy-wh/2, cxcy+wh/2], axis = -1)
 
     # Get only if confidence > 0.05 & keep top 400 boxes
@@ -249,6 +247,8 @@ def decode(anchors_all, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh
     conf_ids, conf_vals = conf_merge[:, 0].astype(int), conf_merge[:, 1]
     # Run NMS on extracted boxes
     boxes_out = boxes_out[np.array(conf_merge[:, 0], dtype = int)]
-    keep = non_max_suppression(boxes_out, nms_thresh)
-    
-    return boxes_out[keep].astype(int), conf_ids[keep], conf_vals[keep]
+    if do_nms:
+        keep = non_max_suppression(boxes_out, nms_thresh)
+        return boxes_out[keep].astype(int), conf_ids[keep], conf_vals[keep]
+    else:
+        return boxes_out.astype(int), conf_ids, conf_vals
