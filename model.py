@@ -106,37 +106,154 @@ class FaceBox(object):
             , ' anchor loc shape: ', bbox_loc_conv.get_shape())
         return bbox_loc_conv, bbox_class_conv
 
-    def hard_negative_mining(self, conf_loss, l1_loss, pos_ids, num_pos, mult = 3):
-        negatives = tf.logical_not(pos_ids)
-        num_neg = tf.cast(tf.reduce_sum(tf.cast(negatives, tf.float32)), tf.int32)
-        conf_loss_neg = tf.reshape(tf.boolean_mask(conf_loss, negatives), [num_neg]) # Extract negative confidence losses only
-        conf_loss_pos = tf.reshape(tf.boolean_mask(conf_loss, pos_ids), [num_pos])
+    def to_center_coordinates(self, boxes):
+        # From: https://github.com/TropComplique/
+        ymin, xmin, ymax, xmax = boxes
+        h = ymax - ymin
+        w = xmax - xmin
+        cy = ymin + 0.5*h
+        cx = xmin + 0.5*w
+        return [cy, cx, h, w]
 
-        n_neg_cap = tf.cast(mult * num_pos, tf.int32)
-        n_neg_cap = tf.minimum(n_neg_cap, tf.shape(conf_loss_neg)[0]) # Cap maximum negative value to # negative boxes
-        conf_loss_k_neg, _ = tf.nn.top_k(conf_loss_neg, k = n_neg_cap, sorted  = True)
-        pos_loss = conf_loss_pos + l1_loss
-        return tf.concat((pos_loss, conf_loss_k_neg), axis = 0)
+    def to_minmax_coordinates(self, boxes):
+        # From: https://github.com/TropComplique/
+        cy, cx, h, w = boxes
+        ymin, xmin = cy - 0.5*h, cx - 0.5*w
+        ymax, xmax = cy + 0.5*h, cx + 0.5*w
+        return [ymin, xmin, ymax, xmax]
+
+    def decode_tf(self, codes, anchors_in):
+        # From: https://github.com/TropComplique/
+        ycenter_a, xcenter_a, ha, wa = self.to_center_coordinates(tf.unstack(anchors_in, axis=1))
+        ty, tx, th, tw = tf.unstack(codes, axis=1)
+
+        ty /= self.anchors_bbox_scale[0]
+        tx /= self.anchors_bbox_scale[0]
+        th /= self.anchors_bbox_scale[1]
+        tw /= self.anchors_bbox_scale[1]
+        w = tf.exp(tw) * wa
+        h = tf.exp(th) * ha
+        ycenter = ty * ha + ycenter_a
+        xcenter = tx * wa + xcenter_a
+
+        return tf.stack(self.to_minmax_coordinates([ycenter, xcenter, h, w]), axis=1)
+
+    def batch_decode_tf(self, box_encodings):
+        # From: https://github.com/TropComplique/
+        tiled_anchor_boxes = tf.tile(
+            tf.expand_dims(self.anchors_bbox, 0),
+            [self.batch_size, 1, 1]
+        )
+
+        decoded_boxes = self.decode_tf(
+            tf.reshape(box_encodings, [-1, 4]),
+            tf.reshape(tiled_anchor_boxes, [-1, 4])
+        )
+        decoded_boxes = tf.reshape(
+            decoded_boxes,
+            [self.batch_size, self.anchor_len, 4]
+        )
+        decoded_boxes = tf.clip_by_value(decoded_boxes, 0.0, 1024)
+        return decoded_boxes
+
+    def l1_loss(self, predictions, targets, weights):
+        abs_diff = tf.abs(predictions - targets)
+        abs_diff_lt_1 = tf.less(abs_diff, 1.0)
+        return tf.squeeze(weights) * tf.reduce_sum(
+            tf.where(abs_diff_lt_1, 0.5 * tf.square(abs_diff), abs_diff - 0.5), axis=2
+        )
+
+    def _subsample_selection_to_desired_neg_pos_ratio(self, 
+    indices, match, 
+    max_negatives_per_positive, min_negatives_per_image):
+        # From: https://github.com/TropComplique/
+        positives_indicator = tf.squeeze(tf.gather(match, indices))
+        negatives_indicator = tf.logical_not(positives_indicator)
+
+        # all positives in `indices` will be kept
+        num_positives = tf.reduce_sum(tf.to_int32(positives_indicator), axis=0)
+        max_negatives = tf.maximum(
+            min_negatives_per_image,
+            tf.to_int32(max_negatives_per_positive * tf.to_float(num_positives))
+        )
+
+        top_k_negatives_indicator = tf.less_equal(
+            tf.cumsum(tf.to_int32(negatives_indicator), axis=0),
+            max_negatives
+        )
+        subsampled_selection_indices = tf.where(
+            tf.logical_or(positives_indicator, top_k_negatives_indicator)
+        )  # shape [num_hard_examples, 1]
+        subsampled_selection_indices = tf.squeeze(subsampled_selection_indices, axis=1)
+        selected_indices = tf.gather(indices, subsampled_selection_indices)
+
+        num_negatives = tf.size(subsampled_selection_indices) - num_positives
+        return selected_indices, num_positives, num_negatives
+
+
+    def hard_negative_mining(self, l1_loss, conf_loss, 
+                                conf_preds, loc_preds, 
+                                matches, pos_neg_mult = 3,
+                                min_negatives = 0,
+                                NMS_iou_threshold = 0.3):
+
+        decoded_loc_preds = self.batch_decode_tf(loc_preds)
+        
+        decoded_loc_preds = tf.reshape(decoded_loc_preds, [self.batch_size, self.anchor_len, 4])
+        conf_preds = tf.reshape(conf_preds, [self.batch_size, self.anchor_len, 2])
+        l1_loss = tf.reshape(l1_loss, [self.batch_size, self.anchor_len])
+        conf_loss = tf.reshape(conf_loss, [self.batch_size, self.anchor_len])
+
+        decoded_boxes_list = tf.unstack(decoded_loc_preds, axis=0)
+        location_losses_list = tf.unstack(l1_loss, axis=0)
+        cls_losses_list = tf.unstack(conf_loss, axis=0)
+        matches_list = tf.unstack(matches, axis=0)
+
+        num_positives_list, num_negatives_list = [], []
+        mined_location_losses, mined_cls_losses = [], []
+
+        for i, box_locations in enumerate(decoded_boxes_list):
+            image_losses = cls_losses_list[i] * 1.0 # + location_losses_list[i]*0.0 #Weighting on losses
+
+            selected_indices = tf.image.non_max_suppression(
+                box_locations, image_losses, self.anchor_len, NMS_iou_threshold
+            )
+
+            selected_indices, num_positives, num_negatives = self._subsample_selection_to_desired_neg_pos_ratio(
+                selected_indices, matches_list[i],
+                pos_neg_mult, min_negatives
+            )
+
+            num_positives_list.append(num_positives)
+            num_negatives_list.append(num_negatives)
+
+            mined_location_losses.append(
+                tf.reduce_sum(tf.gather(location_losses_list[i], selected_indices), axis=0)
+            )
+            mined_cls_losses.append(
+                tf.reduce_sum(tf.gather(cls_losses_list[i], selected_indices), axis=0)
+            )
+
+        mean_num_positives = tf.reduce_mean(tf.stack(num_positives_list, axis=0), axis=0)
+        mean_num_negatives = tf.reduce_mean(tf.stack(num_negatives_list, axis=0), axis=0)
+        location_loss = tf.reduce_sum(tf.stack(mined_location_losses, axis=0), axis=0)
+        cls_loss = tf.reduce_sum(tf.stack(mined_cls_losses, axis=0), axis=0)
+        return location_loss, cls_loss
 
     def compute_loss(self, loc_preds, conf_preds, loc_true, conf_true):
-        loc_preds = tf.reshape(loc_preds, (-1, 4))
-        conf_preds = tf.reshape(conf_preds, (-1, 2))
-        loc_true = tf.reshape(loc_true, (-1, 4))
-        conf_true = tf.reshape(conf_true, (-1, 1))
+        matches = tf.equal(conf_true, 1)
+        
+        l1_loss = self.l1_loss(loc_preds, loc_true,  tf.cast(matches, tf.float32))
+        conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
 
-        positive_check = tf.cast(tf.equal(conf_true, 1), tf.float32)
-        positive_count = tf.cast(tf.reduce_sum(positive_check), tf.int32)
+        matches_per_image = tf.reduce_sum(tf.cast(matches, tf.float32), axis=1) # Matches per each input image in batch
+        normalizer = tf.maximum(tf.reduce_sum(matches_per_image), 1.0)
 
-        pos_ids = tf.reshape(tf.cast(positive_check, tf.bool), [-1])
+        loc_loss, class_loss = self.hard_negative_mining(l1_loss, conf_loss, conf_preds, loc_preds, matches)
+        loc_loss/=normalizer
+        class_loss/=normalizer
 
-        # NOTE: this process collapses batches (each image can have a different # positive masks)
-        pos_locs_preds = tf.reshape(tf.boolean_mask(loc_preds, pos_ids), (-1, 4))
-        pos_locs_targets = tf.reshape(tf.boolean_mask(loc_true, pos_ids), (-1, 4))
-        l1_loss = tf.losses.huber_loss(pos_locs_targets, pos_locs_preds, reduction = tf.losses.Reduction.NONE) # Smoothed L1 loss
-        l1_loss = tf.reduce_mean(l1_loss, axis = -1)
-        conf_loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels = conf_true, logits = conf_preds)
-    
-        loss = self.hard_negative_mining(conf_loss, l1_loss, pos_ids, positive_count)
+        loss = 1.0 * loc_loss + 1.0 * class_loss
         return loss
 
     def add_weight_decay(self, weight_decay):
