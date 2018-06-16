@@ -134,7 +134,7 @@ class FaceBox(object):
         pos_locs_targets = tf.reshape(tf.boolean_mask(loc_true, pos_ids), (-1, 4))
         l1_loss = tf.losses.huber_loss(pos_locs_targets, pos_locs_preds, reduction = tf.losses.Reduction.NONE) # Smoothed L1 loss
         l1_loss = tf.reduce_mean(l1_loss, axis = -1)
-        conf_loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels = conf_true, logits = conf_preds)
+        conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits_v2(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
     
         loss = self.hard_negative_mining(conf_loss, l1_loss, pos_ids, positive_count)
         return loss
