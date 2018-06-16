@@ -255,7 +255,7 @@ class FaceBox(object):
         
         self.add_weight_decay(0.001)
         self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)
-        self.mean_loss = self.loss + tf.losses.get_regularization_loss()
+        self.mean_loss = tf.reduce_mean(self.loss) + tf.losses.get_regularization_loss()
         tf.summary.scalar('Loss', self.mean_loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):

@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+import cv2
 from model import FaceBox
 import anchors
 import pickle
@@ -39,13 +40,13 @@ if __name__ == '__main__':
     data_train_dir = '../WIDER/train_images/'
     data_test_dir = '../WIDER/test_images/'
     save_f = './models/autoencoder'
-    PRINT_FREQ = 10
-    TEST_FREQ = 200
-    SAVE_FREQ = 2000
+    PRINT_FREQ = 500
+    TEST_FREQ = 1000
+    SAVE_FREQ = 10000
     BATCH_SIZE = 5
     IM_S = 1024
     IM_CHANNELS = 3
-    N_WORKERS = 3
+    N_WORKERS = 6
     MAX_PREBUFF_LIM = 20
     IOU_THRESH = 0.5
     CONFIG = [[1024, 1024, 32, 32, 32, 32, 4], 
@@ -64,7 +65,7 @@ if __name__ == '__main__':
     # svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict)
     svc_train = data.DataService(train_data, False, data_train_dir, (1024, 1024))
     svc_test = data.DataService(test_data, False, data_test_dir, (1024, 1024))
-
+# 
     # print('Starting augmenter...')
     # svc_train.start()
     # print('Running model...')
@@ -96,6 +97,7 @@ if __name__ == '__main__':
         while (1<2):
             print(' Iteration ', i, end = '\r')
             i+=1
+            # imgs, lbls = svc_train.pop()
             imgs, lbls = svc_train.random_sample(BATCH_SIZE) #pop()
             pred_confs, pred_locs, loss, summary = fb_model.train_iter(boxes_vec, imgs, lbls)
             pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs)
