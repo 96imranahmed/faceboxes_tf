@@ -62,13 +62,13 @@ if __name__ == '__main__':
     test_data = pickle.load(file = open(data_test_source, 'rb'))
 
     augmenter_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
-    # svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict)
-    svc_train = data.DataService(train_data, False, data_train_dir, (1024, 1024))
+    svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict)
+    # svc_train = data.DataService(train_data, False, data_train_dir, (1024, 1024))
     svc_test = data.DataService(test_data, False, data_test_dir, (1024, 1024))
 # 
-    # print('Starting augmenter...')
-    # svc_train.start()
-    # print('Running model...')
+    print('Starting augmenter...')
+    svc_train.start()
+    print('Running model...')
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
@@ -97,8 +97,8 @@ if __name__ == '__main__':
         while (1<2):
             print(' Iteration ', i, end = '\r')
             i+=1
-            # imgs, lbls = svc_train.pop()
-            imgs, lbls = svc_train.random_sample(BATCH_SIZE) #pop()
+            imgs, lbls = svc_train.pop()
+            # imgs, lbls = svc_train.random_sample(BATCH_SIZE) #pop()
             pred_confs, pred_locs, loss, summary = fb_model.train_iter(boxes_vec, imgs, lbls)
             pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs)
             train_loss.append(loss)
