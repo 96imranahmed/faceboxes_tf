@@ -3,12 +3,15 @@ import numpy as np
 import anchors
 
 class FaceBox(object):
-    def __init__(self, sess, input_shape, anchors):
+    def __init__(self, sess, input_shape, anchors_in, anchors_scale = anchors.SCALE_FACTOR):
         self.sess = sess
         self.input_shape = input_shape
+        self.batch_size = input_shape[0]
         self.base_init = tf.truncated_normal_initializer(stddev=0.1) # Initialise weights
         self.reg_init = tf.contrib.layers.l2_regularizer(scale=0.1) # Initialise regularisation
-        self.anchor_len = anchors[0]
+        self.anchor_len = anchors_in.shape[0]
+        self.anchors_bbox = tf.to_float(tf.constant(anchors_in))
+        self.anchors_bbox_scale = anchors_scale
         self.build_graph()
     
     def CReLU(self, in_x, name):
@@ -149,7 +152,7 @@ class FaceBox(object):
 
     def build_graph(self):
         # Process inputs
-        self.inputs =  tf.placeholder(tf.float32, shape = (None, self.input_shape[1], self.input_shape[2], self.input_shape[3]), name = "inputs")
+        self.inputs =  tf.placeholder(tf.float32, shape = (self.batch_size, self.input_shape[1], self.input_shape[2], self.input_shape[3]), name = "inputs")
         self.is_training = tf.placeholder(tf.bool, name = "is_training")
         DEBUG = True
         if DEBUG: print('Input shape: ', self.inputs.get_shape())
@@ -247,12 +250,12 @@ class FaceBox(object):
         print('Output loc shapes' , self.out_locs.get_shape())
         print('Output conf shapes' , self.out_confs.get_shape())
 
-        self.target_locs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 4), name = 'target_locs')
-        self.target_confs = tf.placeholder(tf.float32, shape = (None, self.anchor_len, 1), name = 'target_confs')
+        self.target_locs = tf.placeholder(tf.float32, shape = (self.batch_size, self.anchor_len, 4), name = 'target_locs')
+        self.target_confs = tf.placeholder(tf.float32, shape = (self.batch_size, self.anchor_len, 1), name = 'target_confs')
         
         self.add_weight_decay(0.001)
         self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)
-        self.mean_loss = tf.reduce_mean(self.loss + tf.losses.get_regularization_loss())
+        self.mean_loss = self.loss + tf.losses.get_regularization_loss()
         tf.summary.scalar('Loss', self.mean_loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
