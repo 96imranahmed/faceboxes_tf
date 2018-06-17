@@ -92,14 +92,15 @@ class DataService(object):
                     if DEBUG: print('Print vars: ', vars_to_print)
 
     def correct_bboxes(self, box, w, h):
+        DEBUG = False
         if box[0] == box[2]:
-            print('Correcting: ', box)
+            if DEBUG: print('Correcting: ', box)
             if box[2] == w - 1:
                 box[0] -= 1
                 box[2] -= 1
             box[2]+=1
         if box[1] == box[3]:
-            print('Correcting: ', box)
+            if DEBUG: print('Correcting: ', box)
             if box[3] == h - 1:
                 box[1] -= 1
                 box[3] -= 1
