@@ -76,10 +76,36 @@ class DataService(object):
             return np.array(imgs), boxes, np.array(imgs_orig), boxes_orig
         else:
             return np.array(imgs), boxes
-    
+
+    def assert_bboxes(self, boxes, orig = None, vars_to_print = None):
+        DEBUG = False
+        for i in range(len(boxes)):
+            c_box = boxes[i]
+            if c_box[2] <= c_box[0] or c_box[3] <= c_box[1]:
+                if DEBUG: print('Error: ', c_box)
+                if orig is not None:
+                    if DEBUG: print('Original: ', orig[i])
+                if vars_to_print is not None:
+                    if DEBUG: print('Print vars: ', vars_to_print)
+
+    def correct_bboxes(self, box, w, h):
+        if box[0] == box[2]:
+            if box[2] == w - 1:
+                box[0] -= 1
+                box[2] -= 1
+            box[2]+=1
+        if box[1] == box[3]:
+            if box[3] == h - 1:
+                box[1] -= 1
+                box[3] -= 1
+            box[3]+=1
+        return box
+
     def resize_images(self, imgs, boxes):
         DEBUG = False
         w_n, h_n = self.out_size
+        boxes_out = []
+        img_out = []
         for i in range(len(imgs)):
             img_cur = imgs[i]
             if DEBUG: print(i)
@@ -91,11 +117,11 @@ class DataService(object):
                 if s_f_y > s_f_x:
                     scale = img_cur.shape[0]/img_cur.shape[1]
                     img_cur = cv2.resize(img_cur, (int(h_n), int(scale*h_n)))
-                    boxes[i] = np.array([[int(val/s_f_y) for val in z] for z in boxes[i]]).copy()
+                    boxes[i] = np.array([[int(np.round(val/s_f_y)) for val in z] for z in boxes[i]]).copy()
                 else:
                     scale = img_cur.shape[1]/img_cur.shape[0]
                     img_cur = cv2.resize(img_cur, (int(scale*w_n), int(w_n)))
-                    boxes[i] = np.array([[int(val/s_f_x) for val in z] for z in boxes[i]]).copy()                 
+                    boxes[i] = np.array([[int(np.round(val/s_f_x)) for val in z] for z in boxes[i]]).copy()                 
             if DEBUG: print('After ', img_cur.shape)
             y_pad = w_n - img_cur.shape[0]
             y_r = randint(0, y_pad)
@@ -104,18 +130,27 @@ class DataService(object):
             if DEBUG: print('Padding', y_r, y_pad, x_r, x_pad)
             img_cur = cv2.copyMakeBorder(img_cur, y_r, y_pad - y_r, x_r, x_pad - x_r, cv2.BORDER_CONSTANT, value=(0,0,0))
             if DEBUG: print('Post border ', img_cur.shape)
-            imgs[i] = img_cur.copy()
-            boxes[i] = np.array([[z[0]+x_r, z[1]+y_r, z[2]+x_r, z[3]+y_r] for z in boxes[i]]).copy()
-            # if boxes[i][2] > boxes[i][0]:
-            #     raise ValueError('Something has gone wrong: ', boxes[i], x_r, y_r)
-        return imgs, boxes
+            img_out.append(img_cur.copy())
+            boxes_out.append(np.array([self.correct_bboxes([z[0]+x_r, z[1]+y_r, z[2]+x_r, z[3]+y_r], w_n, h_n) for z in boxes[i]]).copy())
+            # self.assert_bboxes(boxes_out[i], boxes[i], [x_r, x_pad, y_r, y_pad])
+        return np.array(img_out), boxes_out
     
     def bbox_r(self, bbox):
         return [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
 
     def augment(self, imgs, boxes):
-        ia_bb = [ia.BoundingBoxesOnImage([ia.BoundingBox(x1 = i[0], y1 = i[1], x2 = i[2], y2 = i[3]) for i in boxes[n]], shape = imgs[n].shape) \
-                for n in range(len(imgs))]
+        for bx in boxes:
+            self.assert_bboxes(bx)
+        ia_bb = []
+        for n in range(len(imgs)):
+            c_boxes = []
+            for i in boxes[n]:
+                try:
+                    c_boxes.append(ia.BoundingBox(x1 = i[0], y1 = i[1], x2 = i[2], y2 = i[3]))
+                except AssertionError:
+                    print('Assertion Error: ', i)
+            ia_bb.append(ia.BoundingBoxesOnImage(c_boxes, shape = imgs[n].shape))
+
         seq = iaa.Sequential([
             iaa.Sometimes(0.5, iaa.AddElementwise((-20, 20), per_channel=1)),
             iaa.Sometimes(0.5, iaa.AdditiveGaussianNoise(scale=(0, 0.10*255))),
