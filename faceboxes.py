@@ -43,7 +43,7 @@ if __name__ == '__main__':
     PRINT_FREQ = 500
     TEST_FREQ = 1000
     SAVE_FREQ = 10000
-    BATCH_SIZE = 5
+    BATCH_SIZE = 15
     IM_S = 1024
     IM_CHANNELS = 3
     N_WORKERS = 12
