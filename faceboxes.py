@@ -46,7 +46,7 @@ if __name__ == '__main__':
     BATCH_SIZE = 5
     IM_S = 1024
     IM_CHANNELS = 3
-    N_WORKERS = 6
+    N_WORKERS = 12
     MAX_PREBUFF_LIM = 20
     IOU_THRESH = 0.5
     CONFIG = [[1024, 1024, 32, 32, 32, 32, 4], 

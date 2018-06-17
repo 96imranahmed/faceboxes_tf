@@ -193,10 +193,15 @@ def encode(anchors_all, boxes, threshold):
     global SCALE_FACTOR, EPSILON
 
     boxes = np.array(boxes).copy()
-    
-    iou_mat = compute_iou_np(anchors_all,np.array(boxes))
-    max_iou = np.max(iou_mat, axis = 0) # Compute Maximum IOU values
-    max_iou_ids = np.argmax(iou_mat, axis = 0) # Compute Maximum IOU indexes
+    if not len(boxes) == 0:
+        iou_mat = compute_iou_np(anchors_all,np.array(boxes))
+        max_iou = np.max(iou_mat, axis = 0) # Compute Maximum IOU values
+        max_iou_ids = np.argmax(iou_mat, axis = 0) # Compute Maximum IOU indexes
+    else:
+        max_iou_ids = np.zeros((len(anchors_all))).astype(int)
+        max_iou_ids[0] = 1 # Give default value
+        max_iou = np.zeros((len(anchors_all)))
+        boxes = np.zeros((1, 4))
 
     # Get corresponding anchor locs
     anchor_boxes = anchors_all[max_iou_ids] 

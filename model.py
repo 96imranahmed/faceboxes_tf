@@ -106,7 +106,7 @@ class FaceBox(object):
             , ' anchor loc shape: ', bbox_loc_conv.get_shape())
         return bbox_loc_conv, bbox_class_conv
 
-    def hard_negative_mining(self, conf_loss, l1_loss, pos_ids, num_pos, mult = 3):
+    def hard_negative_mining(self, conf_loss, l1_loss, pos_ids, num_pos, mult = 3, min_negs = 5):
         negatives = tf.logical_not(pos_ids)
         num_neg = tf.cast(tf.reduce_sum(tf.cast(negatives, tf.float32)), tf.int32)
         conf_loss_neg = tf.reshape(tf.boolean_mask(conf_loss, negatives), [num_neg]) # Extract negative confidence losses only
@@ -114,6 +114,7 @@ class FaceBox(object):
 
         n_neg_cap = tf.cast(mult * num_pos, tf.int32)
         n_neg_cap = tf.minimum(n_neg_cap, tf.shape(conf_loss_neg)[0]) # Cap maximum negative value to # negative boxes
+        n_neg_cap = tf.maximum(min_negs, n_neg_cap) # Cap minimum negative value to min_negs
         conf_loss_k_neg, _ = tf.nn.top_k(conf_loss_neg, k = n_neg_cap, sorted  = True)
         pos_loss = conf_loss_pos + l1_loss
         return tf.concat((pos_loss, conf_loss_k_neg), axis = 0)
