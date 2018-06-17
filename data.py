@@ -54,7 +54,10 @@ class DataService(object):
     def worker(self):
         np.random.seed()
         while True:
-            imgs, boxes = self.random_sample(self.mp['b_s'], False)
+            try:
+                imgs, boxes = self.random_sample(self.mp['b_s'], False)
+            except AssertionError:
+                print('Assertion Error (edge-case) - skipping...')
             if not self.q.full():
                 self.q.put(tuple([imgs, boxes]))
             
@@ -90,11 +93,13 @@ class DataService(object):
 
     def correct_bboxes(self, box, w, h):
         if box[0] == box[2]:
+            print('Correcting: ', box)
             if box[2] == w - 1:
                 box[0] -= 1
                 box[2] -= 1
             box[2]+=1
         if box[1] == box[3]:
+            print('Correcting: ', box)
             if box[3] == h - 1:
                 box[1] -= 1
                 box[3] -= 1
@@ -139,8 +144,8 @@ class DataService(object):
         return [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
 
     def augment(self, imgs, boxes):
-        for bx in boxes:
-            self.assert_bboxes(bx)
+        # for bx in boxes:
+        #     self.assert_bboxes(bx)
         ia_bb = []
         for n in range(len(imgs)):
             c_boxes = []
