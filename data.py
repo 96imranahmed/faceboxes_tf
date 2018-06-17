@@ -56,10 +56,10 @@ class DataService(object):
         while True:
             try:
                 imgs, boxes = self.random_sample(self.mp['b_s'], False)
+                if not self.q.full():
+                    self.q.put(tuple([imgs, boxes]))
             except AssertionError:
                 print('Assertion Error (edge-case) - skipping...')
-            if not self.q.full():
-                self.q.put(tuple([imgs, boxes]))
             
     def read_image(self, loc):
         img = cv2.imread(self.data_path + loc.strip())
