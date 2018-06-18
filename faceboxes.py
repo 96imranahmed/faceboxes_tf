@@ -53,17 +53,21 @@ if __name__ == '__main__':
             [1024, 1024, 32, 32, 64, 64, 2],
             [1024, 1024, 32, 32, 128, 128, 1],
             [1024, 1024, 64, 64, 256, 256, 1],
-            [1024, 1024, 128, 128, 512, 512, 1]] 
+            [1024, 1024, 128, 128, 512, 512, 1]]
+    IS_AUG = True
     # NOTE: SSD variances are set in the anchors.py file
     boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG)
     tf.reset_default_graph()
 
     train_data = pickle.load(file = open(data_train_source, 'rb'))
     test_data = pickle.load(file = open(data_test_source, 'rb'))
-
-    augmenter_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
-    svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict)
-    # svc_train = data.DataService(train_data, False, data_train_dir, (1024, 1024))
+    
+    svc_train = None
+    if IS_AUG:
+        augmenter_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
+        svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict)
+    else:
+        svc_train = data.DataService(train_data, False, data_train_dir, (1024, 1024))
     svc_test = data.DataService(test_data, False, data_test_dir, (1024, 1024))
 # 
     print('Starting augmenter...')
@@ -97,8 +101,11 @@ if __name__ == '__main__':
         while (1<2):
             print(' Iteration ', i, end = '\r')
             i+=1
-            imgs, lbls = svc_train.pop()
-            # imgs, lbls = svc_train.random_sample(BATCH_SIZE) #pop()
+            imgs, lbls = None, None
+            if IS_AUG: 
+                imgs, lbls = svc_train.pop()
+            else:
+                imgs, lbls = svc_train.random_sample(BATCH_SIZE)
             pred_confs, pred_locs, loss, summary = fb_model.train_iter(boxes_vec, imgs, lbls)
             pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs)
             train_loss.append(loss)
