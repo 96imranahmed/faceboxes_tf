@@ -54,7 +54,7 @@ if __name__ == '__main__':
             [1024, 1024, 32, 32, 128, 128, 1],
             [1024, 1024, 64, 64, 256, 256, 1],
             [1024, 1024, 128, 128, 512, 512, 1]]
-    IS_AUG = True
+    IS_AUG = False
     # NOTE: SSD variances are set in the anchors.py file
     boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG)
     tf.reset_default_graph()
@@ -66,13 +66,12 @@ if __name__ == '__main__':
     if IS_AUG:
         augmenter_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
         svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict)
+        print('Starting augmenter...')
+        svc_train.start()
+        print('Running model...')
     else:
         svc_train = data.DataService(train_data, False, data_train_dir, (1024, 1024))
     svc_test = data.DataService(test_data, False, data_test_dir, (1024, 1024))
-# 
-    print('Starting augmenter...')
-    svc_train.start()
-    print('Running model...')
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
