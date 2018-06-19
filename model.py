@@ -107,37 +107,42 @@ class FaceBox(object):
         return bbox_loc_conv, bbox_class_conv
 
     def hard_negative_mining(self, conf_loss, l1_loss, pos_ids, num_pos, mult = 3, min_negs = 5):
-        negatives = tf.logical_not(pos_ids)
-        num_neg = tf.cast(tf.reduce_sum(tf.cast(negatives, tf.float32)), tf.int32)
-        conf_loss_neg = tf.reshape(tf.boolean_mask(conf_loss, negatives), [num_neg]) # Extract negative confidence losses only
-        conf_loss_pos = tf.reshape(tf.boolean_mask(conf_loss, pos_ids), [num_pos])
-
-        n_neg_cap = tf.cast(mult * num_pos, tf.int32)
-        n_neg_cap = tf.minimum(n_neg_cap, tf.shape(conf_loss_neg)[0]) # Cap maximum negative value to # negative boxes
-        n_neg_cap = tf.maximum(min_negs, n_neg_cap) # Cap minimum negative value to min_negs
-        conf_loss_k_neg, _ = tf.nn.top_k(conf_loss_neg, k = n_neg_cap, sorted  = True)
-        pos_loss = conf_loss_pos + l1_loss
-        return tf.concat((pos_loss, conf_loss_k_neg), axis = 0)
+        pos_ids = tf.unstack(pos_ids)
+        neg_ids = [tf.logical_not(p) for p in pos_ids]
+        conf_loss = tf.unstack(conf_loss)
+        l1_loss = tf.unstack(l1_loss)
+        loss_out = []
+        for c_i in range(self.batch_size):
+            c_pos_ids = pos_ids[c_i]
+            c_neg_ids = neg_ids[c_i]
+            c_num_neg = tf.cast(tf.reduce_sum(tf.cast(c_neg_ids, tf.float32)), tf.int32)
+            c_num_pos = tf.cast(tf.reduce_sum(tf.cast(c_pos_ids, tf.float32)), tf.int32)
+            c_conf_loss = conf_loss[c_i]
+            c_l1_loss = l1_loss[c_i]
+            loss_neg = tf.reshape(tf.boolean_mask(c_conf_loss, c_neg_ids), [c_num_neg]) # Extract negative confidence losses only
+            loss_pos = tf.reshape(tf.boolean_mask(c_conf_loss, c_pos_ids), [c_num_pos])
+            c_neg_cap = tf.cast(mult * c_num_pos, tf.int32)
+            c_neg_cap = tf.maximum(min_negs, c_neg_cap) # Cap minimum negative value to min_negs
+            c_neg_cap = tf.minimum(c_neg_cap, c_num_neg) # Cap minimum values to max # = anchor_len
+            loss_k_neg, _ = tf.nn.top_k(loss_neg, k = c_neg_cap, sorted  = True)
+            loss_out.append(tf.concat((c_l1_loss, loss_k_neg), axis = 0))
+        return tf.concat(loss_out, axis = 0)
 
     def compute_loss(self, loc_preds, conf_preds, loc_true, conf_true):
-        loc_preds = tf.reshape(loc_preds, (-1, 4))
-        conf_preds = tf.reshape(conf_preds, (-1, 2))
-        loc_true = tf.reshape(loc_true, (-1, 4))
-        conf_true = tf.reshape(conf_true, (-1, 1))
+        loc_preds = tf.reshape(loc_preds, (self.batch_size, -1, 4))
+        conf_preds = tf.reshape(conf_preds, (self.batch_size, -1, 2))
+        loc_true = tf.reshape(loc_true, (self.batch_size , -1, 4))
+        conf_true = tf.reshape(conf_true, (self.batch_size , -1, 1))
 
-        positive_check = tf.cast(tf.equal(conf_true, 1), tf.float32)
-        positive_count = tf.cast(tf.reduce_sum(positive_check), tf.int32)
+        positive_check = tf.reshape(tf.cast(tf.equal(conf_true, 1), tf.float32), (self.batch_size, self.anchor_len))
+        pos_ids = tf.cast(positive_check, tf.bool)
 
-        pos_ids = tf.reshape(tf.cast(positive_check, tf.bool), [-1])
+        l1_loss = tf.losses.huber_loss(loc_preds, loc_true, reduction = tf.losses.Reduction.NONE) # Smoothed L1 loss
+        l1_loss = positive_check * tf.reduce_mean(l1_loss, axis = -1) # Zero out L1 loss for negative boxes
 
-        # NOTE: this process collapses batches (each image can have a different # positive masks)
-        pos_locs_preds = tf.reshape(tf.boolean_mask(loc_preds, pos_ids), (-1, 4))
-        pos_locs_targets = tf.reshape(tf.boolean_mask(loc_true, pos_ids), (-1, 4))
-        l1_loss = tf.losses.huber_loss(pos_locs_targets, pos_locs_preds, reduction = tf.losses.Reduction.NONE) # Smoothed L1 loss
-        l1_loss = tf.reduce_mean(l1_loss, axis = -1)
         conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
-    
-        loss = self.hard_negative_mining(conf_loss, l1_loss, pos_ids, positive_count)
+
+        loss = self.hard_negative_mining(conf_loss, l1_loss, pos_ids, tf.cast(tf.reduce_sum(positive_check), tf.int32))
         return loss
 
     def add_weight_decay(self, weight_decay):
@@ -256,8 +261,9 @@ class FaceBox(object):
         
         self.add_weight_decay(0.001)
         self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)
-        self.mean_loss = tf.reduce_mean(self.loss) + tf.losses.get_regularization_loss()
+        self.mean_loss = tf.reduce_mean(self.loss)
         tf.summary.scalar('Loss', self.mean_loss)
+        self.mean_loss += tf.losses.get_regularization_loss() #Add regularisation
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
             self.train = tf.train.AdamOptimizer(0.001).minimize(self.mean_loss)

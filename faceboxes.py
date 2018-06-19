@@ -40,7 +40,7 @@ if __name__ == '__main__':
     data_train_dir = '../WIDER/train_images/'
     data_test_dir = '../WIDER/test_images/'
     save_f = './models/autoencoder'
-    PRINT_FREQ = 500
+    PRINT_FREQ = 10
     TEST_FREQ = 1000
     SAVE_FREQ = 10000
     BATCH_SIZE = 15
