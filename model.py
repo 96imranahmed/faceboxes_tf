@@ -252,7 +252,7 @@ class FaceBox(object):
         self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)
         self.mean_loss = tf.reduce_mean(self.loss)
         tf.summary.scalar('Loss', self.mean_loss)
-        self.mean_loss += tf.losses.get_regularization_loss() #Add regularisation
+        self.mean_loss += tf.reduce_mean(tf.losses.get_regularization_loss()) #Add regularisation
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
             self.train = tf.train.AdamOptimizer(0.001).minimize(self.mean_loss)
