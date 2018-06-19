@@ -7,8 +7,8 @@ class FaceBox(object):
         self.sess = sess
         self.input_shape = input_shape
         self.batch_size = input_shape[0]
-        self.base_init = tf.truncated_normal_initializer(stddev=0.1) # Initialise weights
-        self.reg_init = tf.contrib.layers.l2_regularizer(scale=0.1) # Initialise regularisation
+        self.base_init = tf.contrib.layers.xavier_initializer() # Initialise weights
+        self.reg_init = tf.contrib.layers.l2_regularizer(scale=0.001) # Initialise regularisation
         self.anchor_len = anchors_in.shape[0]
         self.anchors_bbox = tf.to_float(tf.constant(anchors_in))
         self.anchors_bbox_scale = anchors_scale
@@ -106,7 +106,7 @@ class FaceBox(object):
             , ' anchor loc shape: ', bbox_loc_conv.get_shape())
         return bbox_loc_conv, bbox_class_conv
 
-    def hard_negative_mining(self, conf_loss, l1_loss, pos_ids, num_pos, mult = 3, min_negs = 5):
+    def hard_negative_mining(self, conf_loss, l1_loss, pos_ids, mult = 3, min_negs = 5):
         pos_ids = tf.unstack(pos_ids)
         neg_ids = [tf.logical_not(p) for p in pos_ids]
         conf_loss = tf.unstack(conf_loss)
@@ -119,13 +119,14 @@ class FaceBox(object):
             c_num_pos = tf.cast(tf.reduce_sum(tf.cast(c_pos_ids, tf.float32)), tf.int32)
             c_conf_loss = conf_loss[c_i]
             c_l1_loss = l1_loss[c_i]
-            loss_neg = tf.reshape(tf.boolean_mask(c_conf_loss, c_neg_ids), [c_num_neg]) # Extract negative confidence losses only
-            loss_pos = tf.reshape(tf.boolean_mask(c_conf_loss, c_pos_ids), [c_num_pos])
+            loss_conf_neg = tf.reshape(tf.boolean_mask(c_conf_loss, c_neg_ids), [c_num_neg]) # Extract negative confidence losses only
+            loss_conf_pos = tf.reshape(tf.boolean_mask(c_conf_loss, c_pos_ids), [c_num_pos])
+            loss_l1_pos = tf.reshape(tf.boolean_mask(c_l1_loss, c_pos_ids), [c_num_pos])
             c_neg_cap = tf.cast(mult * c_num_pos, tf.int32)
             c_neg_cap = tf.maximum(min_negs, c_neg_cap) # Cap minimum negative value to min_negs
             c_neg_cap = tf.minimum(c_neg_cap, c_num_neg) # Cap minimum values to max # = anchor_len
-            loss_k_neg, _ = tf.nn.top_k(loss_neg, k = c_neg_cap, sorted  = True)
-            loss_out.append(tf.concat((c_l1_loss, loss_k_neg), axis = 0))
+            loss_conf_k_neg, _ = tf.nn.top_k(loss_conf_neg, k = c_neg_cap, sorted  = True)
+            loss_out.append(tf.concat((loss_l1_pos + loss_conf_pos, loss_conf_k_neg), axis = 0))
         return tf.concat(loss_out, axis = 0)
 
     def compute_loss(self, loc_preds, conf_preds, loc_true, conf_true):
@@ -142,19 +143,8 @@ class FaceBox(object):
 
         conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
 
-        loss = self.hard_negative_mining(conf_loss, l1_loss, pos_ids, tf.cast(tf.reduce_sum(positive_check), tf.int32))
+        loss = self.hard_negative_mining(conf_loss, l1_loss, pos_ids)
         return loss
-
-    def add_weight_decay(self, weight_decay):
-        weight_decay = tf.constant(
-            weight_decay, tf.float32,
-            [], 'weight_decay'
-        )
-        trainable_vars = tf.trainable_variables()
-        kernels = [v for v in trainable_vars if 'weights' in v.name]
-        for K in kernels:
-            x = tf.multiply(weight_decay, tf.nn.l2_loss(K))
-            tf.add_to_collection(tf.GraphKeys.REGULARIZATION_LOSSES, x)
 
     def build_graph(self):
         # Process inputs
@@ -247,10 +237,10 @@ class FaceBox(object):
         bbox_locs.append(l)
         bbox_confs.append(c)
 
-        self.out_locs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 4]) for i in bbox_locs], axis = -2)
-        self.out_confs = tf.concat([tf.reshape(i, [tf.shape(i)[0], -1, 2]) for i in bbox_confs], axis = -2)
-        self.out_locs = tf.reshape(self.out_locs, [tf.shape(self.out_locs)[0], self.anchor_len, 4])
-        self.out_confs = tf.reshape(self.out_confs, [tf.shape(self.out_confs)[0], self.anchor_len, 2])
+        self.out_locs = tf.concat([tf.reshape(i, [self.batch_size, -1, 4]) for i in bbox_locs], axis = -2)
+        self.out_confs = tf.concat([tf.reshape(i, [self.batch_size, -1, 2]) for i in bbox_confs], axis = -2)
+        self.out_locs = tf.reshape(self.out_locs, [self.batch_size, self.anchor_len, 4])
+        self.out_confs = tf.reshape(self.out_confs, [self.batch_size, self.anchor_len, 2])
         self.p_confs = tf.nn.softmax(self.out_confs)
 
         print('Output loc shapes' , self.out_locs.get_shape())
@@ -259,7 +249,6 @@ class FaceBox(object):
         self.target_locs = tf.placeholder(tf.float32, shape = (self.batch_size, self.anchor_len, 4), name = 'target_locs')
         self.target_confs = tf.placeholder(tf.float32, shape = (self.batch_size, self.anchor_len, 1), name = 'target_confs')
         
-        self.add_weight_decay(0.001)
         self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)
         self.mean_loss = tf.reduce_mean(self.loss)
         tf.summary.scalar('Loss', self.mean_loss)

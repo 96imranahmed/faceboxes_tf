@@ -39,8 +39,8 @@ if __name__ == '__main__':
     data_test_source = './wider_test.p'
     data_train_dir = '../WIDER/train_images/'
     data_test_dir = '../WIDER/test_images/'
-    save_f = './models/autoencoder'
-    PRINT_FREQ = 10
+    save_f = './models/facebox'
+    PRINT_FREQ = 50
     TEST_FREQ = 1000
     SAVE_FREQ = 10000
     BATCH_SIZE = 15
