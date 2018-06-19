@@ -8,7 +8,7 @@ class FaceBox(object):
         self.input_shape = input_shape
         self.batch_size = input_shape[0]
         self.base_init = tf.contrib.layers.xavier_initializer() # Initialise weights
-        self.reg_init = tf.contrib.layers.l2_regularizer(scale=0.001) # Initialise regularisation
+        self.reg_init = tf.contrib.layers.l2_regularizer(scale=0.0005) # Initialise regularisation
         self.anchor_len = anchors_in.shape[0]
         self.anchors_bbox = tf.to_float(tf.constant(anchors_in))
         self.anchors_bbox_scale = anchors_scale
