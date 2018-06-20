@@ -15,96 +15,99 @@ class FaceBox(object):
         self.build_graph()
     
     def CReLU(self, in_x, name):
-        x = tf.layers.batch_normalization(in_x, training = self.is_training, name = name + '_batch')
-        return tf.nn.crelu(x, name = name + '_crelu')
+        with tf.variable_scope(name):
+            x = tf.layers.batch_normalization(in_x, training = self.is_training, name = name + '_batch')
+            return tf.nn.crelu(x, name = name + '_crelu')
 
     def Inception(self, in_x, name):
-        DEBUG = False
-        if DEBUG: print('Input shape: ', in_x.get_shape())
-        path_1 = tf.layers.conv2d(in_x, 32, 
-                                kernel_size = [1, 1],
-                                strides = 1,
-                                kernel_initializer=self.base_init,
-                                kernel_regularizer=self.reg_init,
-                                name = name + 'conv_1_1',
-                                activation = tf.nn.relu,
-                                padding = 'SAME')
-        path_2 = tf.layers.max_pooling2d(in_x, [3,3], 1, name = name+'pool_1_2',
-                                padding = 'SAME') # No striding to preserve shape
-        path_2 = tf.layers.conv2d(path_2, 32, 
-                                kernel_size = [1, 1],
-                                strides = 1,
-                                kernel_initializer=self.base_init,
-                                kernel_regularizer=self.reg_init,
-                                name = name + 'conv_1_2',
-                                activation = tf.nn.relu,
-                                padding = 'SAME')
-        if DEBUG: print('Path 2 shape: ', path_2.get_shape())
-        path_3 = tf.layers.conv2d(in_x, 24, 
-                                kernel_size = [1, 1],
-                                strides = 1,
-                                kernel_initializer=self.base_init,
-                                kernel_regularizer=self.reg_init,
-                                name = name + 'conv_1_3',
-                                activation = tf.nn.relu,
-                                padding = 'SAME')
-        path_3 = tf.layers.conv2d(path_3, 32, 
-                                kernel_size = [3, 3],
-                                strides = 1,
-                                kernel_initializer=self.base_init,
-                                kernel_regularizer=self.reg_init,
-                                name = name + 'conv_2_3',
-                                activation = tf.nn.relu,
-                                padding = 'SAME')
-        if DEBUG: print('Path 3 shape: ', path_3.get_shape())
-        path_4 = tf.layers.conv2d(in_x, 24, 
-                        kernel_size = [1, 1],
-                        strides = 1,
-                        kernel_initializer=self.base_init,
-                        kernel_regularizer=self.reg_init,
-                        name = name + 'conv_1_4',
-                        activation = tf.nn.relu,
-                        padding = 'SAME')
-        path_4 = tf.layers.conv2d(path_4, 32, 
-                        kernel_size = [3, 3],
-                        strides = 1,
-                        kernel_initializer=self.base_init,
-                        kernel_regularizer=self.reg_init,
-                        name = name + 'conv_2_4',
-                        activation = tf.nn.relu,
-                        padding = 'SAME')
-        path_4 = tf.layers.conv2d(path_4, 32, 
-                        kernel_size = [3, 3],
-                        strides = 1,
-                        kernel_initializer=self.base_init,
-                        kernel_regularizer=self.reg_init,
-                        name = name + 'conv_3_4',
-                        activation = tf.nn.relu,
-                        padding = 'SAME')
-        if DEBUG: print('Path 4 shape: ', path_4.get_shape())
-        return tf.concat([path_1, path_2, path_3, path_4], axis = -1)
+        with tf.variable_scope(name):
+            DEBUG = False
+            if DEBUG: print('Input shape: ', in_x.get_shape())
+            path_1 = tf.layers.conv2d(in_x, 32, 
+                                    kernel_size = [1, 1],
+                                    strides = 1,
+                                    kernel_initializer=self.base_init,
+                                    kernel_regularizer=self.reg_init,
+                                    name = name + 'conv_1_1',
+                                    activation = tf.nn.relu,
+                                    padding = 'SAME')
+            path_2 = tf.layers.max_pooling2d(in_x, [3,3], 1, name = name+'pool_1_2',
+                                    padding = 'SAME') # No striding to preserve shape
+            path_2 = tf.layers.conv2d(path_2, 32, 
+                                    kernel_size = [1, 1],
+                                    strides = 1,
+                                    kernel_initializer=self.base_init,
+                                    kernel_regularizer=self.reg_init,
+                                    name = name + 'conv_1_2',
+                                    activation = tf.nn.relu,
+                                    padding = 'SAME')
+            if DEBUG: print('Path 2 shape: ', path_2.get_shape())
+            path_3 = tf.layers.conv2d(in_x, 24, 
+                                    kernel_size = [1, 1],
+                                    strides = 1,
+                                    kernel_initializer=self.base_init,
+                                    kernel_regularizer=self.reg_init,
+                                    name = name + 'conv_1_3',
+                                    activation = tf.nn.relu,
+                                    padding = 'SAME')
+            path_3 = tf.layers.conv2d(path_3, 32, 
+                                    kernel_size = [3, 3],
+                                    strides = 1,
+                                    kernel_initializer=self.base_init,
+                                    kernel_regularizer=self.reg_init,
+                                    name = name + 'conv_2_3',
+                                    activation = tf.nn.relu,
+                                    padding = 'SAME')
+            if DEBUG: print('Path 3 shape: ', path_3.get_shape())
+            path_4 = tf.layers.conv2d(in_x, 24, 
+                            kernel_size = [1, 1],
+                            strides = 1,
+                            kernel_initializer=self.base_init,
+                            kernel_regularizer=self.reg_init,
+                            name = name + 'conv_1_4',
+                            activation = tf.nn.relu,
+                            padding = 'SAME')
+            path_4 = tf.layers.conv2d(path_4, 32, 
+                            kernel_size = [3, 3],
+                            strides = 1,
+                            kernel_initializer=self.base_init,
+                            kernel_regularizer=self.reg_init,
+                            name = name + 'conv_2_4',
+                            activation = tf.nn.relu,
+                            padding = 'SAME')
+            path_4 = tf.layers.conv2d(path_4, 32, 
+                            kernel_size = [3, 3],
+                            strides = 1,
+                            kernel_initializer=self.base_init,
+                            kernel_regularizer=self.reg_init,
+                            name = name + 'conv_3_4',
+                            activation = tf.nn.relu,
+                            padding = 'SAME')
+            if DEBUG: print('Path 4 shape: ', path_4.get_shape())
+            return tf.concat([path_1, path_2, path_3, path_4], axis = -1)
 
     def build_anchor(self, in_x, num_out, name):
-        DEBUG = True
-        bbox_loc_conv = tf.layers.conv2d(in_x, num_out*4, 
-                        kernel_size = [3, 3],
-                        strides = 1,
-                        kernel_initializer=self.base_init,
-                        kernel_regularizer=self.reg_init,
-                        activation = None,
-                        name = name + '_anchor_loc_conv',
-                        padding = 'SAME')
-        bbox_class_conv = tf.layers.conv2d(in_x, num_out*2, 
-                        kernel_size = [3, 3],
-                        strides = 1,
-                        kernel_initializer=self.base_init,
-                        kernel_regularizer=self.reg_init,
-                        activation = None,
-                        name = name + '_anchor_conf_conv',
-                        padding = 'SAME')
-        if DEBUG: print(name, 'anchor class shape: ', bbox_class_conv.get_shape()
-            , ' anchor loc shape: ', bbox_loc_conv.get_shape())
-        return bbox_loc_conv, bbox_class_conv
+        with tf.variable_scope(name):
+            DEBUG = True
+            bbox_loc_conv = tf.layers.conv2d(in_x, num_out*4, 
+                            kernel_size = [3, 3],
+                            strides = 1,
+                            kernel_initializer=self.base_init,
+                            kernel_regularizer=self.reg_init,
+                            activation = None,
+                            name = name + '_anchor_loc_conv',
+                            padding = 'SAME')
+            bbox_class_conv = tf.layers.conv2d(in_x, num_out*2, 
+                            kernel_size = [3, 3],
+                            strides = 1,
+                            kernel_initializer=self.base_init,
+                            kernel_regularizer=self.reg_init,
+                            activation = None,
+                            name = name + '_anchor_conf_conv',
+                            padding = 'SAME')
+            if DEBUG: print(name, 'anchor class shape: ', bbox_class_conv.get_shape()
+                , ' anchor loc shape: ', bbox_loc_conv.get_shape())
+            return bbox_loc_conv, bbox_class_conv
 
     def build_graph(self):
         # Process inputs
@@ -148,7 +151,7 @@ class FaceBox(object):
         if DEBUG: print('Incept 3 shape: ', incept_3.get_shape())   
         
         if DEBUG: print('Inception 3 anchors...')
-        l, c = self.build_anchor(incept_3, 21, 'incept_3')
+        l, c = self.build_anchor(incept_3, 21, 'anchor_incept_3')
         bbox_locs.append(l)
         bbox_confs.append(c)
 
@@ -170,7 +173,7 @@ class FaceBox(object):
                                 padding = 'SAME')
 
         if DEBUG: print('Conv 3_2 anchors...')
-        l, c = self.build_anchor(conv_3_2, 1, 'conv_3_2')
+        l, c = self.build_anchor(conv_3_2, 1, 'anchor_conv_3_2')
         bbox_locs.append(l)
         bbox_confs.append(c)
 
@@ -193,7 +196,7 @@ class FaceBox(object):
         if DEBUG: print('Conv 4_2 shape: ', conv_4_2.get_shape())
 
         if DEBUG: print('Conv 4_2 anchors...')
-        l, c = self.build_anchor(conv_4_2, 1, 'conv_4_2')
+        l, c = self.build_anchor(conv_4_2, 1, 'anchor_conv_4_2')
         bbox_locs.append(l)
         bbox_confs.append(c)
 
@@ -210,53 +213,56 @@ class FaceBox(object):
         self.target_confs = tf.placeholder(tf.float32, shape = (self.batch_size, self.anchor_len, 1), name = 'target_confs')
         
         self.loss = self.compute_loss(self.out_locs, self.out_confs, self.target_locs, self.target_confs)
-        self.mean_loss = tf.reduce_mean(self.loss)
-        self.mean_loss += tf.losses.get_regularization_loss() #Add regularisation
-        tf.summary.scalar('Loss', self.mean_loss)
+        self.loss += tf.losses.get_regularization_loss() #Add regularisation
+        tf.summary.scalar('Loss', self.loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
-            self.train = tf.train.AdamOptimizer(0.001).minimize(self.mean_loss)
+            self.train = tf.train.AdamOptimizer(0.0001).minimize(self.loss)
         self.merged = tf.summary.merge_all()
 
-    def hard_negative_mining(self, conf_loss, l1_loss, pos_ids, mult = 3, min_negs = 1):
-        pos_ids = tf.unstack(pos_ids)
-        neg_ids = [tf.logical_not(p) for p in pos_ids]
-        conf_loss = tf.unstack(conf_loss)
-        l1_loss = tf.unstack(l1_loss)
-        loss_out = []
-        for c_i in range(self.batch_size):
-            c_pos_ids = pos_ids[c_i]
-            c_neg_ids = neg_ids[c_i]
-            c_num_neg = tf.cast(tf.reduce_sum(tf.cast(c_neg_ids, tf.float32)), tf.int32)
-            c_num_pos = tf.cast(tf.reduce_sum(tf.cast(c_pos_ids, tf.float32)), tf.int32)
-            c_conf_loss = conf_loss[c_i]
-            c_l1_loss = l1_loss[c_i]
-            loss_conf_neg = tf.reshape(tf.boolean_mask(c_conf_loss, c_neg_ids), [c_num_neg]) # Extract negative confidence losses only
-            loss_conf_pos = tf.reshape(tf.boolean_mask(c_conf_loss, c_pos_ids), [c_num_pos])
-            loss_l1_pos = tf.reshape(tf.boolean_mask(c_l1_loss, c_pos_ids), [c_num_pos])
-            c_neg_cap = tf.cast(mult * c_num_pos, tf.int32)
-            c_neg_cap = tf.maximum(min_negs, c_neg_cap) # Cap minimum negative value to min_negs
-            c_neg_cap = tf.minimum(c_neg_cap, c_num_neg) # Cap minimum values to max # = anchor_len
-            loss_conf_k_neg, _ = tf.nn.top_k(loss_conf_neg, k = c_neg_cap, sorted  = True)
-            loss_out.append(tf.concat((loss_l1_pos + loss_conf_pos, loss_conf_k_neg), axis = 0))
-        return tf.concat(loss_out, axis = 0)
+    def hard_negative_mining(self, conf_loss, pos_ids, mult = 3, min_negs = 1):
+        with tf.name_scope('hard_negative_mining') as scope:
+            pos_ids = tf.unstack(pos_ids)
+            neg_ids = [tf.logical_not(p) for p in pos_ids]
+            conf_loss = tf.unstack(conf_loss)
+            loss_out = []
+            for c_i in range(self.batch_size):
+                c_pos_ids = pos_ids[c_i]
+                c_neg_ids = neg_ids[c_i]
+                c_num_neg = tf.cast(tf.reduce_sum(tf.cast(c_neg_ids, tf.float32)), tf.int32)
+                c_num_pos = tf.cast(tf.reduce_sum(tf.cast(c_pos_ids, tf.float32)), tf.int32)
+                c_conf_loss = conf_loss[c_i]
+                # c_l1_loss = l1_loss[c_i]
+                loss_conf_neg = tf.reshape(tf.boolean_mask(c_conf_loss, c_neg_ids), [c_num_neg]) # Extract negative confidence losses only
+                loss_conf_pos = tf.reshape(tf.boolean_mask(c_conf_loss, c_pos_ids), [c_num_pos])
+                # loss_l1_pos = tf.reshape(tf.boolean_mask(c_l1_loss, c_pos_ids), [c_num_pos])
+                c_neg_cap = tf.cast(mult * c_num_pos, tf.int32)
+                c_neg_cap = tf.maximum(min_negs, c_neg_cap) # Cap minimum negative value to min_negs
+                c_neg_cap = tf.minimum(c_neg_cap, c_num_neg) # Cap minimum values to max # = anchor_len
+                loss_conf_k_neg, _ = tf.nn.top_k(loss_conf_neg, k = c_neg_cap, sorted  = True)
+                # loss_out.append(tf.concat((loss_l1_pos + loss_conf_pos, loss_conf_k_neg), axis = 0))
+                loss_out.append(tf.concat((loss_conf_pos, loss_conf_k_neg), axis = 0))
+            return tf.concat(loss_out, axis = 0)
 
     def compute_loss(self, loc_preds, conf_preds, loc_true, conf_true):
-        loc_preds = tf.reshape(loc_preds, (self.batch_size, -1, 4))
-        conf_preds = tf.reshape(conf_preds, (self.batch_size, -1, 2))
-        loc_true = tf.reshape(loc_true, (self.batch_size , -1, 4))
-        conf_true = tf.reshape(conf_true, (self.batch_size , -1, 1))
+        with tf.name_scope('loss') as scope:
+            loc_preds = tf.reshape(loc_preds, (self.batch_size, -1, 4))
+            conf_preds = tf.reshape(conf_preds, (self.batch_size, -1, 2))
+            loc_true = tf.reshape(loc_true, (self.batch_size , -1, 4))
+            conf_true = tf.reshape(conf_true, (self.batch_size , -1, 1))
 
-        positive_check = tf.reshape(tf.cast(tf.equal(conf_true, 1), tf.float32), (self.batch_size, self.anchor_len))
-        pos_ids = tf.cast(positive_check, tf.bool)
+            positive_check = tf.reshape(tf.cast(tf.equal(conf_true, 1), tf.float32), (self.batch_size, self.anchor_len))
+            pos_ids = tf.cast(positive_check, tf.bool)
+            n_pos = tf.reduce_sum(positive_check)
 
-        l1_loss = tf.losses.huber_loss(loc_preds, loc_true, reduction = tf.losses.Reduction.NONE) # Smoothed L1 loss
-        l1_loss = positive_check * tf.reduce_mean(l1_loss, axis = -1) # Zero out L1 loss for negative boxes
+            l1_loss = tf.losses.huber_loss(loc_preds, loc_true, reduction = tf.losses.Reduction.NONE) # Smoothed L1 loss
+            l1_loss = positive_check * tf.reduce_mean(l1_loss, axis = -1) # Zero out L1 loss for negative boxes
 
-        conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
+            conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
+            conf_loss = self.hard_negative_mining(conf_loss, pos_ids)
 
-        loss = self.hard_negative_mining(conf_loss, l1_loss, pos_ids)
-        return loss
+            loss = (tf.reduce_sum(l1_loss) + tf.reduce_sum(conf_loss))/n_pos
+            return loss
 
     def train_iter(self, anchors_vec, imgs, lbls):
         locs, confs = anchors.encode_batch(anchors_vec, lbls, threshold = 0.35)
@@ -268,8 +274,8 @@ class FaceBox(object):
             self.target_locs: locs,
             self.target_confs: confs
         }
-        pred_confs, pred_locs, summary, _, loss = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.mean_loss], feed_dict = feed_dict)
-        print(np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]))
+        pred_confs, pred_locs, summary, _, loss = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss], feed_dict = feed_dict)
+        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]))
         return pred_confs, pred_locs, loss, summary
     
     def test_iter(self, imgs):
