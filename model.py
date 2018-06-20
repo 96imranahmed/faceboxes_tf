@@ -113,6 +113,14 @@ class FaceBox(object):
         # Process inputs
         self.inputs =  tf.placeholder(tf.float32, shape = (self.batch_size, self.input_shape[1], self.input_shape[2], self.input_shape[3]), name = "inputs")
         self.is_training = tf.placeholder(tf.bool, name = "is_training")
+        global_step = tf.Variable(0, trainable=False)
+        self.i_plus  = tf.assign(global_step, global_step+1)
+
+        boundaries = [80000, 100000]
+        values = [0.001, 0.0001, 0.00001]
+
+        self.lr = tf.train.piecewise_constant(global_step, boundaries, values)
+
         DEBUG = True
         if DEBUG: print('Input shape: ', self.inputs.get_shape())
             
@@ -217,7 +225,7 @@ class FaceBox(object):
         tf.summary.scalar('Loss', self.loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
-            self.train = tf.train.AdamOptimizer(0.001).minimize(self.loss)
+            self.train = tf.train.AdamOptimizer(self.lr).minimize(self.loss)
         self.merged = tf.summary.merge_all()
 
     def hard_negative_mining(self, conf_loss, pos_ids, mult = 3, min_negs = 1):
@@ -274,8 +282,8 @@ class FaceBox(object):
             self.target_locs: locs,
             self.target_confs: confs
         }
-        pred_confs, pred_locs, summary, _, loss = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss], feed_dict = feed_dict)
-        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]))
+        pred_confs, pred_locs, summary, _, loss, _ = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus], feed_dict = feed_dict)
+        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]), loss)
         return pred_confs, pred_locs, loss, summary
     
     def test_iter(self, imgs):
