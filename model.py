@@ -283,7 +283,7 @@ class FaceBox(object):
             self.target_confs: confs
         }
         pred_confs, pred_locs, summary, _, loss, _ = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus], feed_dict = feed_dict)
-        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]), loss)
+        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]), loss,  end = '\r')
         return pred_confs, pred_locs, loss, summary
     
     def test_iter(self, imgs):

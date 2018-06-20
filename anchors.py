@@ -94,7 +94,8 @@ def compute_mAP(imgs, true, preds):
                 cv2.rectangle(img_p, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)
         im_out += img_t
         im_out += img_p
-        mAP.append(np.sum(im_out == 2)/np.sum(im_out > 0))
+        if np.sum(im_out > 0) > 0:
+            mAP.append(np.sum(im_out == 2)/np.sum(im_out > 0))
     return np.mean(mAP)
 
 def compute_iou_tf(bboxes1, bboxes2):

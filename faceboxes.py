@@ -40,7 +40,7 @@ if __name__ == '__main__':
     data_train_dir = '../WIDER/train_images/'
     data_test_dir = '../WIDER/test_images/'
     save_f = './models/facebox'
-    PRINT_FREQ = 150
+    PRINT_FREQ = 500
     TEST_FREQ = 1000
     SAVE_FREQ = 10000
     BATCH_SIZE = 15
@@ -54,7 +54,7 @@ if __name__ == '__main__':
             [1024, 1024, 32, 32, 128, 128, 1],
             [1024, 1024, 64, 64, 256, 256, 1],
             [1024, 1024, 128, 128, 512, 512, 1]]
-    IS_AUG = False
+    IS_AUG = True
     # NOTE: SSD variances are set in the anchors.py file
     boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG)
     tf.reset_default_graph()
@@ -98,7 +98,7 @@ if __name__ == '__main__':
         train_loss = []
         test_mAP_pred = []
         while (1<2):
-            print(' Iteration ', i, end = '\r')
+            print(' Iteration ', i, '                                                ', end = '\r')
             i+=1
             imgs, lbls = None, None
             if IS_AUG: 
@@ -110,7 +110,8 @@ if __name__ == '__main__':
             train_loss.append(loss)
             train_mAP_pred.append(anchors.compute_mAP(imgs, lbls, pred_boxes))
             writer.add_summary(summary, i)
-            if i%PRINT_FREQ == 0: 
+            if i%PRINT_FREQ == 0:
+                print("")
                 print('Iteration: ', i)
                 print('Mean train loss: ', np.mean(train_loss))
                 print('Mean train mAP: ', np.mean(train_mAP_pred))
