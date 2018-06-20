@@ -242,7 +242,7 @@ def encode_batch(anchors, boxes, threshold):
 def decode_batch(anchors, locs, confs):
     out_boxes = []
     for i in range(len(locs)):
-        b, _, _ = decode(anchors, np.squeeze(locs[i]), np.squeeze(confs[i]))
+        b, _, _ = decode(anchors, np.squeeze(locs[i]), np.squeeze(confs[i]), min_conf = 0.5)
         out_boxes.append(b)
     return out_boxes
 

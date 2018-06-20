@@ -217,7 +217,7 @@ class FaceBox(object):
         tf.summary.scalar('Loss', self.loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
-            self.train = tf.train.AdamOptimizer(0.0001).minimize(self.loss)
+            self.train = tf.train.AdamOptimizer(0.001).minimize(self.loss)
         self.merged = tf.summary.merge_all()
 
     def hard_negative_mining(self, conf_loss, pos_ids, mult = 3, min_negs = 1):
