@@ -105,10 +105,9 @@ if __name__ == '__main__':
                 imgs, lbls = svc_train.pop()
             else:
                 imgs, lbls = svc_train.random_sample(BATCH_SIZE)
-            pred_confs, pred_locs, loss, summary = fb_model.train_iter(boxes_vec, imgs, lbls)
-            pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs)
+            pred_confs, pred_locs, loss, summary, mAP = fb_model.train_iter(boxes_vec, imgs, lbls)
             train_loss.append(loss)
-            train_mAP_pred.append(anchors.compute_mAP(imgs, lbls, pred_boxes))
+            train_mAP_pred.append(mAP)
             writer.add_summary(summary, i)
             if i%PRINT_FREQ == 0: 
                 print('Iteration: ', i)
