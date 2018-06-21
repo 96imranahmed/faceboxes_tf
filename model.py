@@ -288,7 +288,7 @@ class FaceBox(object):
         pred_confs, pred_locs, summary, _, loss, _ = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus], feed_dict = feed_dict)
         pred_boxes = anchors.decode_batch(anchors_vec, pred_locs, pred_confs)
         mAP = anchors.compute_mAP(imgs, lbls, pred_boxes)
-        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]), loss, mAP)
+        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]), loss, mAP, end = '\r')
         return pred_confs, pred_locs, loss, summary, mAP
     
     def test_iter(self, imgs):
