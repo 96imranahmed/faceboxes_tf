@@ -39,7 +39,8 @@ if __name__ == '__main__':
     data_test_source = './wider_test.p'
     data_train_dir = '../WIDER/train_images/'
     data_test_dir = '../WIDER/test_images/'
-    save_f = './models/facebox'
+    save_f = './models/'
+    model_name = 'facebox'
     PRINT_FREQ = 500
     TEST_FREQ = 1000
     SAVE_FREQ = 10000
@@ -55,7 +56,7 @@ if __name__ == '__main__':
             [1024, 1024, 32, 32, 128, 128, 1],
             [1024, 1024, 64, 64, 256, 256, 1],
             [1024, 1024, 128, 128, 512, 512, 1]]
-    IS_AUG = True
+    IS_AUG = False
     # NOTE: SSD variances are set in the anchors.py file
     boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG, normalised = USE_NORM)
     tf.reset_default_graph()
@@ -82,7 +83,7 @@ if __name__ == '__main__':
         print('Num params: ', count_number_trainable_params())
         saver = tf.train.Saver(tf.global_variables(), max_to_keep=5, keep_checkpoint_every_n_hours=2)
         try:
-            ckpt = tf.train.get_checkpoint_state(save_f)
+            ckpt = tf.train.get_checkpoint_state(save_f + model_name)
             if ckpt is None:
                 raise IOError('No valid save file found')
             print('#####################')
@@ -127,7 +128,7 @@ if __name__ == '__main__':
                 test_mAP_pred = []
             if i%SAVE_FREQ == 0:
                 print('Saving model...')
-                saver.save(sess, save_f, global_step = i)
+                saver.save(sess, save_f + model_name, global_step = i)
 
     
 
