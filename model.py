@@ -212,8 +212,8 @@ class FaceBox(object):
         self.out_locs = tf.concat([tf.reshape(i, [self.batch_size, -1, 4]) for i in bbox_locs], axis = -2)
         self.out_confs = tf.concat([tf.reshape(i, [self.batch_size, -1, 2]) for i in bbox_confs], axis = -2)
         self.out_locs = tf.reshape(self.out_locs, [self.batch_size, self.anchor_len, 4])
-        print('Locs min cap: ', np.log(1/512)*self.anchors_bbox_scale[1])
-        print('Locs max cap: ', np.log(1024/32)*self.anchors_bbox_scale[1])
+        # print('Locs min cap: ', np.log(1/512)*self.anchors_bbox_scale[1])
+        # print('Locs max cap: ', np.log(1024/32)*self.anchors_bbox_scale[1])
         # self.out_locs = tf.clip_by_value(self.out_locs, np.log(1/512)*self.anchors_bbox_scale[1], np.log(1024/32)*self.anchors_bbox_scale[1])
         self.out_confs = tf.reshape(self.out_confs, [self.batch_size, self.anchor_len, 2])
         self.p_confs = tf.nn.softmax(self.out_confs)
@@ -289,7 +289,7 @@ class FaceBox(object):
             self.target_confs: confs
         }
         pred_confs, pred_locs, summary, _, loss, _, tst = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus, self.test], feed_dict = feed_dict)
-        pred_boxes = anchors.decode_batch(anchors_vec, pred_locs, pred_confs, min_conf = 0.5, do_nms = True)
+        pred_boxes = anchors.decode_batch(anchors_vec, pred_locs, pred_confs)
         mAP = anchors.compute_mAP(imgs, lbls, pred_boxes, normalised= self.normalised)
         print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]),  'Loss:', loss, 'mAP:', mAP, 'Max:', np.max(pred_locs), 'Min:', np.min(pred_locs))
         return pred_confs, pred_locs, loss, summary, mAP

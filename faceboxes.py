@@ -122,7 +122,7 @@ if __name__ == '__main__':
                 for j in range(100):
                     imgs, lbls = svc_test.random_sample(BATCH_SIZE)
                     pred_confs, pred_locs = fb_model.test_iter(imgs)
-                    pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs, min_conf = 0.5, do_nms = True)
+                    pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs)
                     test_mAP_pred.append(anchors.compute_mAP(imgs, lbls, pred_boxes, normalised = USE_NORM))
                 print('Mean test mAP: ', np.mean(test_mAP_pred))
                 test_mAP_pred = []
