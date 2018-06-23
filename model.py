@@ -213,7 +213,7 @@ class FaceBox(object):
         self.out_locs = tf.reshape(self.out_locs, [self.batch_size, self.anchor_len, 4])
         print('Locs min cap: ', np.log(1/512)*self.anchors_bbox_scale[1])
         print('Locs max cap: ', np.log(1024/32)*self.anchors_bbox_scale[1])
-        self.out_locs = tf.clip_by_value(self.out_locs, np.log(1/512)*self.anchors_bbox_scale[1], np.log(1024/32)*self.anchors_bbox_scale[1])
+        # self.out_locs = tf.clip_by_value(self.out_locs, np.log(1/512)*self.anchors_bbox_scale[1], np.log(1024/32)*self.anchors_bbox_scale[1])
         self.out_confs = tf.reshape(self.out_confs, [self.batch_size, self.anchor_len, 2])
         self.p_confs = tf.nn.softmax(self.out_confs)
 
@@ -251,7 +251,6 @@ class FaceBox(object):
                 c_neg_cap = tf.maximum(min_negs, c_neg_cap) # Cap minimum negative value to min_negs
                 c_neg_cap = tf.minimum(c_neg_cap, c_num_neg) # Cap minimum values to max # = anchor_len
                 loss_conf_k_neg, _ = tf.nn.top_k(loss_conf_neg, k = c_neg_cap, sorted  = True)
-                # loss_out.append(tf.concat((loss_l1_pos + loss_conf_pos, loss_conf_k_neg), axis = 0))
                 loss_out.append(tf.concat((loss_conf_pos, loss_conf_k_neg), axis = 0))
             return tf.concat(loss_out, axis = 0)
 
@@ -260,16 +259,19 @@ class FaceBox(object):
             loc_preds = tf.reshape(loc_preds, (self.batch_size, -1, 4))
             conf_preds = tf.reshape(conf_preds, (self.batch_size, -1, 2))
             loc_true = tf.reshape(loc_true, (self.batch_size , -1, 4))
-            conf_true = tf.reshape(conf_true, (self.batch_size , -1, 1))
+            conf_true = tf.cast(tf.reshape(conf_true, (self.batch_size , -1)), tf.int32)
+            conf_true_oh = tf.one_hot(conf_true, 2)
+            self.test = tf.Variable(0)
 
             positive_check = tf.reshape(tf.cast(tf.equal(conf_true, 1), tf.float32), (self.batch_size, self.anchor_len))
             pos_ids = tf.cast(positive_check, tf.bool)
-            n_pos = tf.reduce_sum(positive_check)
+            n_pos = tf.maximum(tf.reduce_sum(positive_check), 1)
 
             l1_loss = tf.losses.huber_loss(loc_preds, loc_true, reduction = tf.losses.Reduction.NONE) # Smoothed L1 loss
             l1_loss = positive_check * tf.reduce_mean(l1_loss, axis = -1) # Zero out L1 loss for negative boxes
 
-            conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
+            # conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
+            conf_loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels = conf_true_oh, logits = conf_preds)
             conf_loss = self.hard_negative_mining(conf_loss, pos_ids)
 
             loss = (tf.reduce_sum(l1_loss) + tf.reduce_sum(conf_loss))/n_pos
@@ -285,10 +287,12 @@ class FaceBox(object):
             self.target_locs: locs,
             self.target_confs: confs
         }
-        pred_confs, pred_locs, summary, _, loss, _ = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus], feed_dict = feed_dict)
+        pred_confs, pred_locs, summary, _, loss, _, tst = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus, self.test], feed_dict = feed_dict)
         pred_boxes = anchors.decode_batch(anchors_vec, pred_locs, pred_confs)
         mAP = anchors.compute_mAP(imgs, lbls, pred_boxes)
-        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]), loss, mAP, end = '\r')
+        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]), 'Loss:', loss, 'mAP:', mAP, 'Max:', np.max(pred_locs), 'Min:', np.min(pred_locs))
+        # if np.isnan(np.mean(pred_confs[0, confs[0, :, 0] == 1, 1])):
+        #     print(pred_confs[0, :, 1])
         return pred_confs, pred_locs, loss, summary, mAP
     
     def test_iter(self, imgs):
