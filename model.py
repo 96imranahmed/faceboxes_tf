@@ -270,6 +270,7 @@ class FaceBox(object):
 
             l1_loss = tf.losses.huber_loss(loc_preds, loc_true, reduction = tf.losses.Reduction.NONE) # Smoothed L1 loss
             l1_loss = positive_check * tf.reduce_mean(l1_loss, axis = -1) # Zero out L1 loss for negative boxes
+            self.test = tf.boolean_mask(l1_loss, pos_ids)
 
             # conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
             conf_loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels = conf_true_oh, logits = conf_preds)
@@ -291,6 +292,8 @@ class FaceBox(object):
         pred_confs, pred_locs, summary, _, loss, _, tst = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus, self.test], feed_dict = feed_dict)
         pred_boxes = anchors.decode_batch(anchors_vec, pred_locs, pred_confs)
         mAP = anchors.compute_mAP(imgs, lbls, pred_boxes, normalised= self.normalised)
+        if loss > 30:
+            print(tst)
         print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]),  'Loss:', loss, 'mAP:', mAP, 'Max:', np.max(pred_locs), 'Min:', np.min(pred_locs))
         return pred_confs, pred_locs, loss, summary, mAP
     
