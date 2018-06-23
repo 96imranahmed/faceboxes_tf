@@ -3,7 +3,7 @@ import numpy as np
 import anchors
 
 class FaceBox(object):
-    def __init__(self, sess, input_shape, anchors_in, anchors_scale = anchors.SCALE_FACTOR):
+    def __init__(self, sess, input_shape, anchors_in, normalised = False, anchors_scale = anchors.SCALE_FACTOR):
         self.sess = sess
         self.input_shape = input_shape
         self.batch_size = input_shape[0]
@@ -12,6 +12,7 @@ class FaceBox(object):
         self.anchor_len = anchors_in.shape[0]
         self.anchors_bbox = tf.to_float(tf.constant(anchors_in))
         self.anchors_bbox_scale = anchors_scale
+        self.normalised = normalised
         self.build_graph()
     
     def CReLU(self, in_x, name):
@@ -286,8 +287,8 @@ class FaceBox(object):
             self.target_confs: confs
         }
         pred_confs, pred_locs, summary, _, loss, _ = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus], feed_dict = feed_dict)
-        pred_boxes = anchors.decode_batch(anchors_vec, pred_locs, pred_confs)
-        mAP = anchors.compute_mAP(imgs, lbls, pred_boxes)
+        pred_boxes = anchors.decode_batch(anchors_vec, pred_locs, pred_confs, min_conf = 0.5, do_nms = True)
+        mAP = anchors.compute_mAP(imgs, lbls, pred_boxes, normalised= self.normalised)
         print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]), loss, mAP, end = '\r')
         return pred_confs, pred_locs, loss, summary, mAP
     

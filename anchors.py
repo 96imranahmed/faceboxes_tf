@@ -21,12 +21,12 @@ def densify(cx, cy, scale_x_norm, scale_y_norm, factor):
         anchor_dense[w, h] = np.array([x, y, x + scale_x_norm, y + scale_y_norm])
     return np.reshape(anchor_dense, (factor**2, 4))
 
-def get_boxes(input_config):
+def get_boxes(input_config, normalised = False):
     b_out = []
     b_std = []
     shape_stub = []
     for lst in input_config:
-        _, b_cur = get_anchor_boxes(lst[0], lst[1], lst[2], lst[3], lst[4], lst[5], lst[6])
+        _, b_cur = get_anchor_boxes(lst[0], lst[1], lst[2], lst[3], lst[4], lst[5], lst[6], normalised=normalised)
         b_std.append(b_cur)
         shape_stub.append(b_cur.shape[:-1])
         b_out.append(np.reshape(b_cur, (-1, 4)).copy())
@@ -76,20 +76,30 @@ def transform_ltbr_to_lbwh(box):
     # Coordinates stay consistent with OpenCV
     width = np.abs(box[2] - box[0])
     height = np.abs(box[3] - box[1])
-    c_p = [box[0], box[1] + height, width, -1*height]
+    c_p = [box[0], box[1] + height, width, height]
     return c_p
 
-def compute_mAP(imgs, true, preds):
+def compute_mAP(imgs, true, preds, normalised = False):
+    DEBUG = False
     mAP = []
     for i in range(len(imgs)):
         i_c = np.squeeze(imgs[i]).shape
+        h,w, _ = i_c
         img_t = np.zeros((i_c[0], i_c[1], 1))
         img_p = img_t.copy()
         im_out = img_t.copy()
         # True
         for box in true[i]:
+            if DEBUG: print('Bt', box, np.tile((h, w), 2))
+            if normalised: 
+                box = np.multiply(np.array(box),np.tile((h, w), 2))
+            if DEBUG: print('At', box)
             cv2.rectangle(img_t, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)
         for box in preds[i]:
+            if DEBUG: print('Bp', box, np.tile((h, w), 2))
+            if normalised: 
+                box = np.multiply(np.array(box),np.tile((h, w), 2))
+            if DEBUG: print('Ap',box)
             if not np.sum(np.array(box) < 0) > 0:
                 cv2.rectangle(img_p, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)
         im_out += img_t
@@ -98,45 +108,23 @@ def compute_mAP(imgs, true, preds):
             mAP.append(np.sum(im_out == 2)/np.sum(im_out > 0))
     return np.mean(mAP)
 
-def compute_iou_tf(bboxes1, bboxes2):
-    # Extracted from: https://gist.github.com/vierja/38f93bb8c463dce5500c0adf8648d371
-    x11, y11, x12, y12 = tf.split(bboxes1, 4, axis=1)
-    x21, y21, x22, y22 = tf.split(bboxes2, 4, axis=1)
-
-    xA = tf.maximum(x11, tf.transpose(x21))
-    yA = tf.maximum(y11, tf.transpose(y21))
-    xB = tf.minimum(x12, tf.transpose(x22))
-    yB = tf.minimum(y12, tf.transpose(y22))
-
-    interArea = tf.maximum((xB - xA + 1), 0) * tf.maximum((yB - yA + 1), 0)
-
-    boxAArea = (x12 - x11 + 1) * (y12 - y11 + 1)
-    boxBArea = (x22 - x21 + 1) * (y22 - y21 + 1)
-
-    # Fix divide by 0 errors
-    iou = interArea / (boxAArea + tf.transpose(boxBArea) - interArea +0.0001)
-    return iou
-
 def compute_iou_np(bboxes1, bboxes2):
     # Extracted from: https://medium.com/@venuktan/vectorized-intersection-over-union-iou-in-numpy-and-tensor-flow-4fa16231b63d
-    if np.max(bboxes1) < 1.2 and np.min(bboxes1) > -0.2:
-        raise Warning('Compute IOU doesn\'t support 0-1 normalised values')
     x11, y11, x12, y12 = np.split(bboxes1, 4, axis=1)
     x21, y21, x22, y22 = np.split(bboxes2, 4, axis=1)
-
     xA = np.maximum(x11, np.transpose(x21))
     yA = np.maximum(y11, np.transpose(y21))
     xB = np.minimum(x12, np.transpose(x22))
     yB = np.minimum(y12, np.transpose(y22))
 
-    interArea = np.maximum((xB - xA + 1), 0) * np.maximum((yB - yA + 1), 0)
+    interArea = np.maximum(0, yB - yA)*np.maximum(0, xB-xA)
 
-    boxAArea = (x12 - x11 + 1) * (y12 - y11 + 1)
-    boxBArea = (x22 - x21 + 1) * (y22 - y21 + 1)
+    boxAArea = (x12 - x11) * (y12 - y11)
+    boxBArea = (x22 - x21) * (y22 - y21)
 
     # Fix divide by 0 errors
-    iou = interArea / (boxAArea + np.transpose(boxBArea) - interArea +0.0001)
-    return iou
+    iou = interArea / (boxAArea + np.transpose(boxBArea) - interArea + 0.00001)
+    return np.clip(iou, 0, 1)
 
 def non_max_suppression(boxes, overlapThresh):
     # Extracted from: https://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
@@ -156,7 +144,7 @@ def non_max_suppression(boxes, overlapThresh):
  
 	# compute the area of the bounding boxes and sort the bounding
 	# boxes by the bottom-right y-coordinate of the bounding box
-	area = (x2 - x1 + 1) * (y2 - y1 + 1)
+	area = (x2 - x1) * (y2 - y1)
 	idxs = np.argsort(y2)
  
 	# keep looping while some indexes still remain in the indexes
@@ -176,8 +164,8 @@ def non_max_suppression(boxes, overlapThresh):
 		yy2 = np.minimum(y2[i], y2[idxs[:last]])
  
 		# compute the width and height of the bounding box
-		w = np.maximum(0, xx2 - xx1 + 1)
-		h = np.maximum(0, yy2 - yy1 + 1)
+		w = np.maximum(0, xx2 - xx1)
+		h = np.maximum(0, yy2 - yy1)
  
 		# compute the ratio of overlap
 		overlap = (w * h) / area[idxs[:last]]
@@ -247,7 +235,7 @@ def decode_batch(anchors, locs, confs):
         out_boxes.append(b)
     return out_boxes
 
-def decode(anchor_boxes, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh = 0.3, do_nms = False):
+def decode(anchor_boxes, locs, confs, min_conf = 0.05, keep_top = 400, nms_thresh = 0.3, do_nms = True):
     # NOTE: confs is a N x 2 matrix
     global SCALE_FACTOR
 
@@ -275,6 +263,6 @@ def decode(anchor_boxes, locs, confs, min_conf = 0.05, keep_top = 400, nms_thres
     boxes_out = boxes_out[np.array(conf_merge[:, 0], dtype = int)]
     if do_nms:
         keep = non_max_suppression(boxes_out, nms_thresh)
-        return boxes_out[keep].astype(int), conf_ids[keep], conf_vals[keep]
+        return boxes_out[keep], conf_ids[keep], conf_vals[keep]
     else:
-        return boxes_out.astype(int), conf_ids, conf_vals
+        return boxes_out, conf_ids, conf_vals

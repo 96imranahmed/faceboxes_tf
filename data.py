@@ -10,12 +10,13 @@ import multiprocessing
 import threading
 
 class DataService(object):
-    def __init__(self, source_p, do_augment, data_path, out_size, mp_params = None):
+    def __init__(self, source_p, do_augment, data_path, out_size, mp_params = None, normalised = False):
         self.source_p = source_p
         self.do_augment = do_augment
         self.data_path = data_path
         self.out_size = out_size
         self.mp = mp_params
+        self.normalised = normalised
         if self.mp is not None:
             self.q = multiprocessing.Queue(self.mp['lim'])
     
@@ -75,6 +76,8 @@ class DataService(object):
         boxes_orig = boxes[:]
         if self.do_augment:
             imgs, boxes = self.augment(imgs, boxes)
+        if self.normalised:
+            boxes = [i/np.tile(self.out_size, 2) for i in boxes]
         if ret_orig:
             return np.array(imgs), boxes, np.array(imgs_orig), boxes_orig
         else:

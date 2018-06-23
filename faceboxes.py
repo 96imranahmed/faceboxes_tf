@@ -49,6 +49,7 @@ if __name__ == '__main__':
     N_WORKERS = 12
     MAX_PREBUFF_LIM = 20
     IOU_THRESH = 0.5
+    USE_NORM = True
     CONFIG = [[1024, 1024, 32, 32, 32, 32, 4], 
             [1024, 1024, 32, 32, 64, 64, 2],
             [1024, 1024, 32, 32, 128, 128, 1],
@@ -56,7 +57,7 @@ if __name__ == '__main__':
             [1024, 1024, 128, 128, 512, 512, 1]]
     IS_AUG = True
     # NOTE: SSD variances are set in the anchors.py file
-    boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG)
+    boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG, normalised = USE_NORM)
     tf.reset_default_graph()
 
     train_data = pickle.load(file = open(data_train_source, 'rb'))
@@ -65,19 +66,19 @@ if __name__ == '__main__':
     svc_train = None
     if IS_AUG:
         augmenter_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
-        svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict)
+        svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict, normalised = USE_NORM)
         print('Starting augmenter...')
         svc_train.start()
         print('Running model...')
     else:
-        svc_train = data.DataService(train_data, False, data_train_dir, (1024, 1024))
-    svc_test = data.DataService(test_data, False, data_test_dir, (1024, 1024))
+        svc_train = data.DataService(train_data, False, data_train_dir, (1024, 1024), normalised = USE_NORM)
+    svc_test = data.DataService(test_data, False, data_test_dir, (1024, 1024), normalised = USE_NORM)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
         print('Building model...')
-        fb_model = FaceBox(sess, (BATCH_SIZE, IM_S, IM_S, IM_CHANNELS), boxes_vec)
+        fb_model = FaceBox(sess, (BATCH_SIZE, IM_S, IM_S, IM_CHANNELS), boxes_vec, normalised = USE_NORM)
         print('Num params: ', count_number_trainable_params())
         saver = tf.train.Saver(tf.global_variables(), max_to_keep=5, keep_checkpoint_every_n_hours=2)
         try:
@@ -120,8 +121,8 @@ if __name__ == '__main__':
                 for j in range(100):
                     imgs, lbls = svc_test.random_sample(BATCH_SIZE)
                     pred_confs, pred_locs = fb_model.test_iter(imgs)
-                    pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs)
-                    test_mAP_pred.append(anchors.compute_mAP(imgs, lbls, pred_boxes))
+                    pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs, min_conf = 0.5, do_nms = True)
+                    test_mAP_pred.append(anchors.compute_mAP(imgs, lbls, pred_boxes, normalised = USE_NORM))
                 print('Mean test mAP: ', np.mean(test_mAP_pred))
                 test_mAP_pred = []
             if i%SAVE_FREQ == 0:
