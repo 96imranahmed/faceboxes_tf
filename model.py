@@ -113,6 +113,8 @@ class FaceBox(object):
     def build_graph(self):
         # Process inputs
         self.inputs =  tf.placeholder(tf.float32, shape = (self.batch_size, self.input_shape[1], self.input_shape[2], self.input_shape[3]), name = "inputs")
+        self.inputs = self.inputs/255.0
+        self.inputs = 2.0*self.inputs - 1.0
         self.is_training = tf.placeholder(tf.bool, name = "is_training")
         global_step = tf.Variable(0, trainable=False)
         self.i_plus  = tf.assign(global_step, global_step+1)
@@ -281,8 +283,6 @@ class FaceBox(object):
 
     def train_iter(self, anchors_vec, imgs, lbls):
         locs, confs = anchors.encode_batch(anchors_vec, lbls, threshold = 0.35)
-        # print(confs.shape, locs.shape)
-        # print(locs[0, confs[0, :, 0] == 1,:])
         feed_dict = {
             self.inputs: imgs,
             self.is_training: True,
@@ -292,8 +292,8 @@ class FaceBox(object):
         pred_confs, pred_locs, summary, _, loss, _, tst = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus, self.test], feed_dict = feed_dict)
         pred_boxes = anchors.decode_batch(anchors_vec, pred_locs, pred_confs)
         mAP = anchors.compute_mAP(imgs, lbls, pred_boxes, normalised= self.normalised)
-        LIM_TOP = 10
-        LIM_SM = 6
+        LIM_TOP = 15
+        LIM_SM = 10
         if loss > LIM_TOP:
             tst_l, tst_p, tst_t = tst
             print('###############')
@@ -301,7 +301,7 @@ class FaceBox(object):
             print(tst_p[tst_l > LIM_SM])
             print(tst_t[tst_l > LIM_SM])
             print(tst_l[tst_l > LIM_SM])
-        # print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]),  'Loss:', loss, 'mAP:', mAP, 'Max:', np.max(pred_locs), 'Min:', np.min(pred_locs))
+        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]),  'Loss:', loss, 'mAP:', mAP, 'Max:', np.max(pred_locs), 'Min:', np.min(pred_locs))
         return pred_confs, pred_locs, loss, summary, mAP
     
     def test_iter(self, imgs):
