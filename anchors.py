@@ -182,41 +182,52 @@ def encode(anchors_all, boxes, threshold):
     global SCALE_FACTOR, EPSILON
 
     boxes = np.array(boxes).copy()
+    locs = np.zeros((anchors_all.shape[0], 4))
+    confs = np.zeros((anchors_all.shape[0], 1))
     if not len(boxes) == 0:
         iou_mat = compute_iou_np(anchors_all,np.array(boxes))
-        max_iou = np.max(iou_mat, axis = 0) # Compute Maximum IOU values
-        max_iou_ids = np.argmax(iou_mat, axis = 0) # Compute Maximum IOU indexes
-    else:
-        max_iou_ids = np.zeros((len(anchors_all))).astype(int)
-        max_iou_ids[0] = 1 # Give default value
-        max_iou = np.zeros((len(anchors_all)))
-        boxes = np.zeros((1, 4))
+        # n = len(boxes)
+        # Compute anchor that gives max IOU for every box [N]
+        max_iou, max_iou_ids = np.max(iou_mat, axis = 0), np.argmax(iou_mat, axis = 0) 
+        # Compute box that gives max IOU for every anchor [num_anchors]
+        max_obj_iou, max_obj_iou_ids = np.max(iou_mat, axis = 1), np.argmax(iou_mat, axis = 1) 
+        
+        # Set to -1 (no match) if anchor IOU < 0.35
+        max_obj_iou_ids = np.squeeze(max_obj_iou_ids)
+        max_iou_ids = np.squeeze(max_iou_ids)
 
-    # Get corresponding anchor locs
-    anchor_boxes = anchors_all[max_iou_ids] 
+        # if (len(max_iou_ids) != n) or (len(max_obj_iou_ids) != anchors_all.shape[0]):
+        #     raise ValueError('Invalid shapes')
 
-    centers_a = np.array(anchor_boxes[:, 2:] + anchor_boxes[:, :2]).astype(np.float32)/2
-    w_h_a = np.array(anchor_boxes[:, 2:] - anchor_boxes[:, :2]).astype(np.float32)
-    w_h_a += EPSILON
+        threshold_ids = max_obj_iou < threshold
+        ids_out = max_obj_iou_ids.copy()
+        ids_out[threshold_ids] = -1
+        # Zero out forced match
+        ids_out[max_iou_ids] = -1
 
-    centers = np.array(boxes[:, :2] + boxes[:, 2:]).astype(np.float32)/2
-    w_h = np.array(boxes[:, 2:] - boxes[:, :2]).astype(np.float32)
-    w_h += EPSILON
+        # Get corresponding anchor locs
+        anchor_boxes = anchors_all[ids_out >= 0, :]
 
-    cxcy_out = (centers - centers_a)/w_h_a
-    cxcy_out*=SCALE_FACTOR[0]
-    wh_out = np.log(w_h/w_h_a)
-    wh_out*=SCALE_FACTOR[1]
+        centers_a = np.array(anchor_boxes[:, 2:] + anchor_boxes[:, :2]).astype(np.float32)/2
+        w_h_a = np.array(anchor_boxes[:, 2:] - anchor_boxes[:, :2]).astype(np.float32)
+        w_h_a += EPSILON
 
-    cat_items = np.concatenate((cxcy_out, wh_out), axis = -1)
-    
-    locs = np.zeros((anchors_all.shape[0], 4))
-    locs[max_iou_ids] = cat_items
-    
-    confs = np.zeros((anchors_all.shape[0], 1))
-    confs[max_iou_ids] = 1
-    confs[max_iou_ids[max_iou < threshold]] = 0 # Zero-out poor matches
-    # NOTE: confs is a N x 1 matrix (not one-hot)
+        select_ids = ids_out[ids_out >= 0]
+        select_boxes = np.take(boxes, select_ids, axis = 0)
+
+        centers = np.array(select_boxes[:, :2] + select_boxes[:, 2:]).astype(np.float32)/2
+        w_h = np.array(select_boxes[:, 2:] - select_boxes[:, :2]).astype(np.float32)
+        w_h += EPSILON
+        
+        cxcy_out = (centers - centers_a)/w_h_a
+        cxcy_out*=SCALE_FACTOR[0]
+        wh_out = np.log(w_h/w_h_a)
+        wh_out*=SCALE_FACTOR[1]
+
+        cat_items = np.concatenate((cxcy_out, wh_out), axis = -1)
+        locs[ids_out >= 0] = cat_items
+        confs[ids_out >= 0] = 1
+        # NOTE: confs is a N x 1 matrix (not one-hot)
     return locs, np.squeeze(confs)
 
 def encode_batch(anchors, boxes, threshold):
