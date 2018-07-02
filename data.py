@@ -77,7 +77,7 @@ class DataService(object):
         if self.do_augment:
             imgs, boxes = self.augment(imgs, boxes)
         if self.normalised:
-            boxes = [i/np.tile(self.out_size, 2) for i in boxes]
+            boxes = [np.array([i/np.tile(self.out_size, 2) for i in j]) for j in boxes]
         if ret_orig:
             return np.array(imgs), boxes, np.array(imgs_orig), boxes_orig
         else:

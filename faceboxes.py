@@ -35,6 +35,7 @@ def get_nb_params_shape(shape):
 
 if __name__ == '__main__':
     multiprocessing.set_start_method('spawn')
+    np.set_printoptions(suppress=True)
     data_train_source = './wider_train.p'
     data_test_source = './wider_test.p'
     data_train_dir = '../WIDER/train_images/'
@@ -43,7 +44,7 @@ if __name__ == '__main__':
     model_name = 'facebox'
     PRINT_FREQ = 500
     TEST_FREQ = 1000
-    SAVE_FREQ = 10000
+    SAVE_FREQ = 5000
     BATCH_SIZE = 15
     IM_S = 1024
     IM_CHANNELS = 3
