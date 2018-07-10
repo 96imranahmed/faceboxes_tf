@@ -113,8 +113,8 @@ class FaceBox(object):
     def build_graph(self):
         # Process inputs
         self.inputs =  tf.placeholder(tf.float32, shape = (self.batch_size, self.input_shape[1], self.input_shape[2], self.input_shape[3]), name = "inputs")
-        self.inputs = self.inputs/255.0
-        self.inputs = 2.0*self.inputs - 1.0
+        self.inputs = self.inputs/255.0 # Normalise to 0-1
+        self.inputs = 2.0*self.inputs - 1.0 # Makes the same as InceptionNet
         self.is_training = tf.placeholder(tf.bool, name = "is_training")
         global_step = tf.Variable(0, trainable=False)
         self.i_plus  = tf.assign(global_step, global_step+1)
