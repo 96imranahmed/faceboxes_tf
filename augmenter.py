@@ -90,11 +90,26 @@ class AugmenterGPU(object):
                 image = tf.where(switch, tf.cond(one_or_zero, lambda: 255.0, lambda: 0.0) * tf.ones_like(image), image)
                 return image, True
             
+            def random_value_scale(image):
+                scale_size = tf.random_uniform(
+                    tf.shape(image), minval=0.7,
+                    maxval=1.3, dtype=tf.float32
+                )
+                image = tf.multiply(image, scale_size)
+                image = tf.clip_by_value(image, 0.0, 255.0)
+                return image, True
+
             image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.4),
                     lambda: to_grayscale(image),
                     lambda: (image, False))
 
             colour_augs['grayscale'] = did_aug
+
+            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.4),
+                    lambda: random_value_scale(image),
+                    lambda: (image, False))
+            
+            colour_augs['value_scale'] = did_aug
             
             image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.4),
                     lambda: dropout_salt_and_pepper(image),
