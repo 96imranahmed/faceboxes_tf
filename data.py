@@ -67,22 +67,31 @@ class DataService(object):
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         return img
     
-    def random_sample(self, count, ret_orig = False):
+    def random_sample(self, count, ret_orig = False, ret_raw = False):
         choices = np.random.choice(self.source_p, size = count)
         imgs = [self.read_image(i['file_path']) for i in choices]
         boxes = [i['bbox'] for i in choices]
-        imgs, boxes = self.resize_images(imgs, boxes)
+        if ret_raw and self.do_augment:
+            raise NotImplementedError('No parallel augment on raw images')
+        if not ret_raw:
+            imgs, boxes = self.resize_images(imgs, boxes)
         imgs_orig = imgs[:]
         boxes_orig = boxes[:]
         if self.do_augment:
             imgs, boxes = self.augment(imgs, boxes)
         if self.normalised:
-            boxes = [np.array([i/np.tile(self.out_size, 2) for i in j]) for j in boxes]
-        if ret_orig:
-            return np.array(imgs), boxes, np.array(imgs_orig), boxes_orig
+            boxes = [np.array([i/np.tile(imgs[j].shape[:2], 2) for i in j]) for j in boxes]
+        out_arr = []
+        if not ret_raw: 
+            out_arr.append(np.array(imgs))
+            if ret_orig:
+                out_arr.append(np.array(imgs_orig))
+                out_arr.append(boxes_orig)
         else:
-            return np.array(imgs), boxes
-
+            out_arr.append(imgs)
+        out_arr.append(boxes)
+        return out_arr
+        
     def assert_bboxes(self, boxes, orig = None, vars_to_print = None):
         DEBUG = False
         for i in range(len(boxes)):
