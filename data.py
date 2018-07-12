@@ -8,11 +8,17 @@ import os
 from random import randint
 import multiprocessing
 import threading
+import augmenter
 
 class DataService(object):
-    def __init__(self, source_p, do_augment, data_path, out_size, mp_params = None, normalised = False):
+    def __init__(self, source_p, augment_params, data_path, out_size, mp_params = None, normalised = False):
+        if augment_params is None or augment_params == False:
+            self.do_augment = False
+        else:
+            self.do_augment = True
+            if not type(augment_params) == dict: raise ValueError('Expected dictionary of augment parameters')
+            self.aug_params = augment_params
         self.source_p = source_p
-        self.do_augment = do_augment
         self.data_path = data_path
         self.out_size = out_size
         self.mp = mp_params
@@ -91,7 +97,7 @@ class DataService(object):
             out_arr.append(imgs)
         out_arr.append(boxes)
         return out_arr
-        
+
     def assert_bboxes(self, boxes, orig = None, vars_to_print = None):
         DEBUG = False
         for i in range(len(boxes)):

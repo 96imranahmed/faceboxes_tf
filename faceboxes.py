@@ -58,6 +58,7 @@ if __name__ == '__main__':
             [1024, 1024, 64, 64, 256, 256, 1],
             [1024, 1024, 128, 128, 512, 512, 1]]
     IS_AUG = False
+    USE_AUG_TF = False
     # NOTE: SSD variances are set in the anchors.py file
     boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG, normalised = USE_NORM)
     tf.reset_default_graph()
@@ -66,9 +67,10 @@ if __name__ == '__main__':
     test_data = pickle.load(file = open(data_test_source, 'rb'))
     
     svc_train = None
-    if IS_AUG:
-        augmenter_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
-        svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), augmenter_dict, normalised = USE_NORM)
+    if IS_AUG and not USE_AUG_TF:
+        aug_params = {'use_tf': False}
+        mp_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
+        svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), mp_dict, normalised = USE_NORM)
         print('Starting augmenter...')
         svc_train.start()
         print('Running model...')

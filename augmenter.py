@@ -216,9 +216,9 @@ class AugmenterGPU(object):
             self.post_crop = image, boxes, {'crop': did_aug, 'scale':(did_scale, scale)}
     
     def _random_crop_image(self, image, boxes):
-        MIN_OBJ_COVERED = 0.65
+        MIN_OBJ_COVERED = 0.4
         ASPECT_RATIO_RANGE = (0.5, 1.5)
-        AREA_RANGE = (0.5, 1.0)
+        AREA_RANGE = (0.4, 1.0)
         OVERLAP_THRESH = 0.2
         norm_boxes = tf.stack([boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]], axis = 1)
         norm_boxes = norm_boxes/tf.to_float(tf.tile(tf.reshape(tf.shape(image)[:2], (1, 2)), (1, 2)))
