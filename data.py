@@ -17,6 +17,9 @@ class DataService(object):
         else:
             self.do_augment = True
             if not type(augment_params) == dict: raise ValueError('Expected dictionary of augment parameters')
+            if not 'use_tf' in augment_params: raise ValueError('Need to specify if TF or CPU used for augmentation')
+            if augment_params['use_tf'] and 'augmenter' not in augment_params:
+                raise ValueError('Need to supply AugmenterGPU object')
             self.aug_params = augment_params
         self.source_p = source_p
         self.data_path = data_path
@@ -77,25 +80,29 @@ class DataService(object):
         choices = np.random.choice(self.source_p, size = count)
         imgs = [self.read_image(i['file_path']) for i in choices]
         boxes = [i['bbox'] for i in choices]
-        if ret_raw and self.do_augment:
-            raise NotImplementedError('No parallel augment on raw images')
-        if not ret_raw:
-            imgs, boxes = self.resize_images(imgs, boxes)
+        if ret_raw:
+            if self.normalised:
+                boxes = [np.array([i/np.tile(imgs[j].shape[:2], 2) for i in boxes[j]]) for j in range(len(boxes))]
+            return imgs, boxes
         imgs_orig = imgs[:]
         boxes_orig = boxes[:]
         if self.do_augment:
-            imgs, boxes = self.augment(imgs, boxes)
-        if self.normalised:
-            boxes = [np.array([i/np.tile(imgs[j].shape[:2], 2) for i in j]) for j in boxes]
-        out_arr = []
-        if not ret_raw: 
-            out_arr.append(np.array(imgs))
-            if ret_orig:
-                out_arr.append(np.array(imgs_orig))
-                out_arr.append(boxes_orig)
+            if self.aug_params['use_tf']:
+                imgs, boxes, _ = self.aug_params['augmenter'].augment_batch(imgs, boxes)
+            else:
+                imgs, boxes = self.resize_images(imgs, boxes)
+                imgs, boxes = self.cpu_augment(imgs, boxes)
         else:
-            out_arr.append(imgs)
+            imgs, boxes = self.resize_images(imgs, boxes)
+        if self.normalised:
+            boxes = [np.array([i/np.tile(imgs[j].shape[:2], 2) for i in boxes[j]]) for j in range(len(boxes))]
+            boxes_orig = [np.array([i/np.tile(imgs_orig[j].shape[:2], 2) for i in boxes_orig[j]]) for j in range(len(boxes_orig))]
+        out_arr = []
+        out_arr.append(np.array(imgs))
         out_arr.append(boxes)
+        if ret_orig and self.do_augment:
+            out_arr.append(imgs_orig)
+            out_arr.append(boxes_orig)
         return out_arr
 
     def assert_bboxes(self, boxes, orig = None, vars_to_print = None):
@@ -162,7 +169,7 @@ class DataService(object):
     def bbox_r(self, bbox):
         return [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
 
-    def augment(self, imgs, boxes):
+    def cpu_augment(self, imgs, boxes):
         # for bx in boxes:
         #     self.assert_bboxes(bx)
         ia_bb = []

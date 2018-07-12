@@ -383,8 +383,8 @@ class AugmenterGPU(object):
     def build_augment(self):
         P_BOX_TRANSLATE = 0.7
         P_BOX_SCALE = 0.7
-        P_BOX_TRANS_RATIO = 0.15
-        P_BOX_SCALE_RATIO = 0.2
+        P_BOX_TRANS_RATIO = 0.1
+        P_BOX_SCALE_RATIO = 0.15
         with tf.name_scope('augment'):
             self.image_in_padded = tf.placeholder(tf.float32, (self.size_out[0], self.size_out[1], 3))
             self.boxes_in_padded = tf.placeholder(tf.float32, (None, 4))

@@ -58,6 +58,7 @@ if __name__ == '__main__':
             [1024, 1024, 64, 64, 256, 256, 1],
             [1024, 1024, 128, 128, 512, 512, 1]]
     IS_AUG = False
+    USE_MP = False
     USE_AUG_TF = False
     # NOTE: SSD variances are set in the anchors.py file
     boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG, normalised = USE_NORM)
@@ -69,21 +70,32 @@ if __name__ == '__main__':
     svc_train = None
     if IS_AUG and not USE_AUG_TF:
         aug_params = {'use_tf': False}
-        mp_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
-        svc_train = data.DataService(train_data, True, data_train_dir, (1024, 1024), mp_dict, normalised = USE_NORM)
+        if USE_MP:
+            mp_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
+            svc_train = data.DataService(train_data, aug_params, data_train_dir, (IM_S, IM_S), mp_dict, normalised = USE_NORM)
+        else:
+            svc_train = data.DataService(train_data, aug_params, data_train_dir, (IM_S, IM_S), None, normalised = USE_NORM)
         print('Starting augmenter...')
         svc_train.start()
         print('Running model...')
     else:
-        svc_train = data.DataService(train_data, False, data_train_dir, (1024, 1024), normalised = USE_NORM)
-    svc_test = data.DataService(test_data, False, data_test_dir, (1024, 1024), normalised = USE_NORM)
+        svc_train = data.DataService(train_data, False, data_train_dir, (IM_S, IM_S), normalised = USE_NORM)
+    svc_test = data.DataService(test_data, False, data_test_dir, (IM_S, IM_S), normalised = USE_NORM)
 
     config = tf.ConfigProto()
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
+        if IS_AUG and USE_AUG_TF:
+            aug_params = {'use_tf': True, 'augmenter': augmenter.AugmenterGPU(sess, (IM_S, IM_S))}
+            if USE_MP:
+                mp_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
+                svc_train = data.DataService(train_data, aug_params, data_train_dir, (IM_S, IM_S), mp_dict, normalised = USE_NORM)
+            else:
+                svc_train = data.DataService(train_data, aug_params, data_train_dir, (IM_S, IM_S), None, normalised = USE_NORM)
         print('Building model...')
         fb_model = FaceBox(sess, (BATCH_SIZE, IM_S, IM_S, IM_CHANNELS), boxes_vec, normalised = USE_NORM)
         print('Num params: ', count_number_trainable_params())
+        print('Attempting to find a save file...')
         saver = tf.train.Saver(tf.global_variables(), max_to_keep=5, keep_checkpoint_every_n_hours=2)
         try:
             ckpt = tf.train.get_checkpoint_state(save_f + model_name)
@@ -97,6 +109,9 @@ if __name__ == '__main__':
         except IOError:
             print('Model not found - using default initialisation!')
             sess.run(tf.global_variables_initializer())
+        if IS_AUG and USE_AUG_TF and USE_MP:
+            print('Starting TF augmenter...')
+            svc_train.start()
         writer = tf.summary.FileWriter('./logs', sess.graph)
         i = 0
         train_mAP_pred = []
@@ -106,7 +121,7 @@ if __name__ == '__main__':
             print(' Iteration ', i, '                                                ', end = '\r')
             i+=1
             imgs, lbls = None, None
-            if IS_AUG: 
+            if USE_MP: 
                 imgs, lbls = svc_train.pop()
             else:
                 imgs, lbls = svc_train.random_sample(BATCH_SIZE)
