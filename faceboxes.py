@@ -6,6 +6,7 @@ import anchors
 import pickle
 import data
 import multiprocessing
+import augmenter
 
 def count_number_trainable_params(scope = ""):
     '''
@@ -57,9 +58,11 @@ if __name__ == '__main__':
             [1024, 1024, 32, 32, 128, 128, 1],
             [1024, 1024, 64, 64, 256, 256, 1],
             [1024, 1024, 128, 128, 512, 512, 1]]
-    IS_AUG = False
-    USE_MP = False
-    USE_AUG_TF = False
+    IS_AUG = True
+    USE_MP = True
+    USE_AUG_TF = True
+    if USE_AUG_TF and USE_MP:
+        raise ValueError("Can't use TF augmenter with multiprocessing")
     # NOTE: SSD variances are set in the anchors.py file
     boxes_vec, boxes_lst, stubs = anchors.get_boxes(CONFIG, normalised = USE_NORM)
     tf.reset_default_graph()
