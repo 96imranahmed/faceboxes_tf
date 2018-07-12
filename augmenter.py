@@ -216,10 +216,10 @@ class AugmenterGPU(object):
             self.post_crop = image, boxes, {'crop': did_aug, 'scale':(did_scale, scale)}
     
     def _random_crop_image(self, image, boxes):
-        MIN_OBJ_COVERED = 0.4
+        MIN_OBJ_COVERED = 0.9
         ASPECT_RATIO_RANGE = (0.5, 1.5)
-        AREA_RANGE = (0.4, 1.0)
-        OVERLAP_THRESH = 0.2
+        AREA_RANGE = (0.5, 1.0)
+        OVERLAP_THRESH = 0.3
         norm_boxes = tf.stack([boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]], axis = 1)
         norm_boxes = norm_boxes/tf.to_float(tf.tile(tf.reshape(tf.shape(image)[:2], (1, 2)), (1, 2)))
         sample_distorted_bounding_box = tf.image.sample_distorted_bounding_box(
@@ -377,7 +377,11 @@ class AugmenterGPU(object):
                 ymin/win_height, xmin/win_width,
                 ymax/win_height, xmax/win_width
             ], axis=1)
-            boxes = tf.clip_by_value(boxes, clip_value_min=0.0, clip_value_max=1.0)
+            boxes = tf.cond(tf.greater(tf.shape(boxes)[0], 0),
+                    lambda: tf.clip_by_value(boxes, clip_value_min=0.0, clip_value_max=1.0),
+                    lambda: boxes
+                    )
+            # boxes = tf.clip_by_value(boxes, clip_value_min=0.0, clip_value_max=1.0) - work_element_count > 0 (0 vs. 0)
             return boxes
 
     def build_augment(self):
@@ -475,6 +479,9 @@ class AugmenterGPU(object):
             }
             post_crop = self.sess.run(self.post_crop, feed_dict = feed_dict)
             img, boxes, pre_resize_params = post_crop
+            pre_resize_params['boxes'] = len(boxes)
+            if len(boxes) == 0:
+                boxes = [[0, 0, 1, 1]]
             imgs_crop.append(img)
             boxes_crop.append(boxes)
             pre_resize_params_l.append(pre_resize_params)
@@ -491,6 +498,8 @@ class AugmenterGPU(object):
             for key, val in pre_resize_params_l[i].items():
                 params[key] = val
             imgs_out.append(img)
+            if params['boxes'] == 0:
+                boxes = []
             boxes_out.append(self.proc_boxes(boxes)) 
             aug_out.append(params)
         return np.array(imgs_out, dtype = np.uint8), boxes_out, aug_out

@@ -59,7 +59,7 @@ if __name__ == '__main__':
             [1024, 1024, 64, 64, 256, 256, 1],
             [1024, 1024, 128, 128, 512, 512, 1]]
     IS_AUG = True
-    USE_MP = True
+    USE_MP = False
     USE_AUG_TF = True
     if USE_AUG_TF and USE_MP:
         raise ValueError("Can't use TF augmenter with multiprocessing")
@@ -89,7 +89,8 @@ if __name__ == '__main__':
     config.gpu_options.allow_growth = True
     with tf.Session(config=config) as sess:
         if IS_AUG and USE_AUG_TF:
-            aug_params = {'use_tf': True, 'augmenter': augmenter.AugmenterGPU(sess, (IM_S, IM_S))}
+            gpu_aug = augmenter.AugmenterGPU(sess, (IM_S, IM_S))
+            aug_params = {'use_tf': True, 'augmenter': gpu_aug}
             if USE_MP:
                 mp_dict = {'lim': MAX_PREBUFF_LIM, 'n':N_WORKERS, 'b_s':BATCH_SIZE}
                 svc_train = data.DataService(train_data, aug_params, data_train_dir, (IM_S, IM_S), mp_dict, normalised = USE_NORM)
@@ -112,9 +113,6 @@ if __name__ == '__main__':
         except IOError:
             print('Model not found - using default initialisation!')
             sess.run(tf.global_variables_initializer())
-        if IS_AUG and USE_AUG_TF and USE_MP:
-            print('Starting TF augmenter...')
-            svc_train.start()
         writer = tf.summary.FileWriter('./logs', sess.graph)
         i = 0
         train_mAP_pred = []
@@ -140,7 +138,7 @@ if __name__ == '__main__':
                 train_mAP_pred = []
                 train_loss = []
             if i%TEST_FREQ == 0:
-                for j in range(100):
+                for j in range(25):
                     imgs, lbls = svc_test.random_sample(BATCH_SIZE)
                     pred_confs, pred_locs = fb_model.test_iter(imgs)
                     pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs)
