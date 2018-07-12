@@ -26,7 +26,7 @@ class AugmenterGPU(object):
 
             centers_n = tf.transpose(tf.matmul(r_mat, tf.transpose(centers)))
             centers_n += tf.tile(ctr, [tf.shape(boxes)[0], 1])
-            boxes_n = tf.concat([tf.clip_by_value(centers_n - w_h_n/2, 0, self.size_out[0]), tf.clip_by_value(centers_n + w_h_n/2,0, self.size_out[1])], axis = 1) # Clip by value
+            boxes_n = tf.concat([tf.clip_by_value(centers_n - w_h_n/2.0, 0, self.size_out[0]), tf.clip_by_value(centers_n + w_h_n/2,0, self.size_out[1])], axis = 1) # Clip by value
             return img, boxes_n, r_a
     
     def random_flip_lr(self, img, boxes, p = 0.5):
@@ -58,23 +58,37 @@ class AugmenterGPU(object):
                            lambda: (img, boxes, False))
 
     def random_color_mutation(self, image): 
+        P_RANDOM_BRIGHTNESS = 0.3
+        BRIGHTNESS_AUG_PARAM = 0.2
+        P_RANDOM_CONTRAST = 0.3
+        CONTRAST_AUG_PARAM_1 = 0.8
+        CONTRAST_AUG_PARAM_2 = 1.2
+        P_RANDOM_HUE = 0.3
+        HUG_AUG_PARAM = 0.2
+        P_RANDOM_SAT = 0.3
+        SAT_AUG_PARAM_1 = 0.8
+        SAT_AUG_PARAM_2 = 1.2
+        P_GRAYSCALE = 0.2
+        P_PXL_SCALE = 0.7
+        P_S_AND_P = 0.8
+
         with tf.name_scope('color_augment'):
             colour_augs = {}
 
-            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.6),
-                            lambda: (tf.image.random_brightness(image, 0.4), True),
+            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), P_RANDOM_BRIGHTNESS),
+                            lambda: (tf.image.random_brightness(image, BRIGHTNESS_AUG_PARAM), True),
                             lambda: (image, False))
             colour_augs['brightness'] = did_aug
-            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.6),
-                            lambda: (tf.image.random_contrast(image, 0.6, 1.4), True),
+            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), P_RANDOM_CONTRAST),
+                            lambda: (tf.image.random_contrast(image, CONTRAST_AUG_PARAM_1, CONTRAST_AUG_PARAM_2), True),
                             lambda: (image, False))
             colour_augs['contrast'] = did_aug
-            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.6),
-                            lambda: (tf.image.random_hue(image, 0.4), True),
+            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), P_RANDOM_HUE),
+                            lambda: (tf.image.random_hue(image, HUG_AUG_PARAM), True),
                             lambda: (image, False))
             colour_augs['hue'] = did_aug
-            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.6),
-                            lambda: (tf.image.random_saturation(image, 0.6, 1.4), True),
+            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), P_RANDOM_SAT),
+                            lambda: (tf.image.random_saturation(image, SAT_AUG_PARAM_1, SAT_AUG_PARAM_2), True),
                             lambda: (image, False))
             colour_augs['saturation'] = did_aug
 
@@ -84,58 +98,130 @@ class AugmenterGPU(object):
                 return image, True
 
             def dropout_salt_and_pepper(image):
-                d_p = tf.random_uniform(shape = (), minval = 0, maxval = 0.2)
-                switch = tf.less(tf.random_uniform(shape = tf.shape(image)), d_p)
-                one_or_zero = tf.less(tf.random_uniform(shape = ()), 0.5)
-                image = tf.where(switch, tf.cond(one_or_zero, lambda: 255.0, lambda: 0.0) * tf.ones_like(image), image)
+                P_DROPOUT_TOL = 0.05
+                P_CHOOSE_RGB_VS_R_G_B = 0.7
+                P_CHOOSE_HIGH_SINGLE = 0.5
+                P_CHOOSE_SINGLE_MIXED = 0.7
+                d_p = tf.random_uniform(shape = (), minval = 0, maxval = P_DROPOUT_TOL)
+
+                def separate_switch_and_pepper(image, d_p):
+                    P_PICK_HIGH = 0.5
+                    switch = tf.less(tf.random_uniform(shape = tf.shape(image)),d_p/3)
+                    s_p = 255.0 * tf.cast(tf.less(tf.random_uniform(shape = tf.shape(switch)), P_PICK_HIGH), tf.float32)*tf.cast(switch, tf.float32)
+                    return switch, s_p
+
+                def conc_switch_and_pepper(image, d_p):
+                    P_PICK_HIGH = 0.5
+                    switch = tf.less(tf.random_uniform(shape = (tf.shape(image)[0], tf.shape(image)[1], 1)), d_p)
+                    s_p = 255.0 * tf.cast(tf.less(tf.random_uniform(shape = tf.shape(switch)), P_PICK_HIGH), tf.float32)*tf.cast(switch, tf.float32)
+                    switch = tf.tile(switch, (1,1,3))
+                    s_p = tf.tile(s_p, (1,1,3))
+                    return switch, s_p
+
+                switch, s_and_p = tf.cond(
+                    tf.less(tf.random_uniform(shape = ()), P_CHOOSE_RGB_VS_R_G_B), # Random choose whether to set entire RGB (True) or R, G, B separately
+                    lambda: conc_switch_and_pepper(image, d_p),
+                    lambda: separate_switch_and_pepper(image, d_p)
+                )
+
+                one_or_zero = tf.cond(
+                    tf.less(tf.random_uniform(shape = ()), P_CHOOSE_HIGH_SINGLE),
+                    lambda: 255.0 * tf.ones_like(image),
+                    lambda: 0.0 * tf.ones_like(image)
+                ) # Random choose whether to set colour as consistently high or low 
+
+                one_or_zero = tf.cond(
+                    tf.less(tf.random_uniform(shape = ()), P_CHOOSE_SINGLE_MIXED),
+                    lambda: one_or_zero,
+                    lambda: s_and_p
+                ) # Random choose whether to set salt and pepper (mixed) or fixed coloring
+
+                image = tf.where(switch, one_or_zero, image)
                 return image, True
             
             def random_value_scale(image):
+                SCALE_PXL_MIN = 0.8
+                SCALE_PXL_MAX = 1.2
                 scale_size = tf.random_uniform(
-                    tf.shape(image), minval=0.7,
-                    maxval=1.3, dtype=tf.float32
+                    tf.shape(image), minval=SCALE_PXL_MIN,
+                    maxval=SCALE_PXL_MAX, dtype=tf.float32
                 )
                 image = tf.multiply(image, scale_size)
                 image = tf.clip_by_value(image, 0.0, 255.0)
                 return image, True
 
-            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.4),
+            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), P_GRAYSCALE),
                     lambda: to_grayscale(image),
                     lambda: (image, False))
 
             colour_augs['grayscale'] = did_aug
 
-            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.4),
+            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), P_PXL_SCALE),
                     lambda: random_value_scale(image),
                     lambda: (image, False))
             
             colour_augs['value_scale'] = did_aug
             
-            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.4),
+            image, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), P_S_AND_P),
                     lambda: dropout_salt_and_pepper(image),
                     lambda: (image, False))
 
             colour_augs['salt_pepper'] = did_aug
             return image, colour_augs
 
+    def random_boxes_translate(self, boxes, ratio, p):
+        with tf.name_scope('box_translate'):
+            choose = tf.tile(tf.less(tf.random_uniform(shape = (tf.shape(boxes)[0], 1)), p), (1, 4))
+            w_h = boxes[:, 2:] - boxes[:, :2]
+            rand_pert = tf.random_uniform(tf.shape(w_h), minval = -ratio, maxval = ratio, dtype = tf.float32)
+            pert = tf.multiply(rand_pert, w_h)
+            boxes_pert = tf.add(boxes, tf.tile(pert, (1,2)))
+            return tf.where(choose, boxes_pert, boxes)
+    
+    def random_boxes_scale(self, boxes, ratio, p):
+        with tf.name_scope('box_scale'):
+            choose = tf.tile(tf.less(tf.random_uniform(shape = (tf.shape(boxes)[0], 1)), p), (1, 4))
+            w_h = boxes[:, 2:] - boxes[:, :2]
+            centers = (boxes[:, :2] + boxes[:, 2:])/2
+            rand_pert = tf.random_uniform(tf.shape(w_h), minval = 1-ratio, maxval = 1+ratio, dtype = tf.float32)
+            w_h_n = tf.multiply(rand_pert, w_h)
+            return  tf.where(choose, tf.concat([centers - w_h_n/2.0, centers + w_h_n/2.0], axis = -1), boxes)
+
+    def random_resize(self, img, box, min_scale, max_scale):
+        with tf.name_scope('r_resize'):
+            r_scale = tf.random_uniform(shape = (), minval = min_scale, maxval = max_scale)
+            n_size = tf.cast(tf.cast(tf.shape(img)[:2], tf.float32)*r_scale, tf.int32)
+            self.p1 = r_scale
+            self.image_sizes = [tf.shape(img), n_size]
+            img = tf.image.resize_images(img, n_size)
+            box = tf.multiply(box, r_scale)
+            return img, box, r_scale, tf.constant(True)
+
     def build_random_crop(self):
+        P_SHOULD_CROP = 0.8
+        P_SHOULD_SCALE = 0.7
+        SCALE_MIN, SCALE_MAX = 0.75, 1.5
         with tf.name_scope('crop'):
             self.image_in = tf.placeholder(tf.float32, (None, None, 3))
             self.boxes_in = tf.placeholder(tf.float32, (None, 4))
-            image, boxes, did_aug = self._random_crop_image(self.image_in, self.boxes_in)
-            # image, boxes, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), 0.7),
-            #         lambda: self._random_crop_image(self.image_in, self.boxes_in),
-            #         lambda: (self.image_in, self.boxes_in, False))
-            self.post_crop = image, boxes, did_aug
+            image, boxes = self.image_in, self.boxes_in
+
+            image, boxes, did_aug = tf.cond(tf.less(tf.random_uniform(shape = ()), P_SHOULD_CROP),
+                    lambda: self._random_crop_image(image, boxes),
+                    lambda: (image, boxes, False))
+            image, boxes, scale, did_scale = tf.cond(
+                    tf.less(tf.random_uniform(shape = ()), P_SHOULD_SCALE),
+                    lambda: self.random_resize(image, boxes, SCALE_MIN, SCALE_MAX),
+                    lambda: (image, boxes, 1.0, False))
+            self.post_crop = image, boxes, {'crop': did_aug, 'scale':(did_scale, scale)}
     
     def _random_crop_image(self, image, boxes):
-    
-        norm_boxes = tf.stack([boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]], axis = 1)
-        norm_boxes = norm_boxes/tf.to_float(tf.tile(tf.reshape(tf.shape(image)[:2], (1, 2)), (1, 2)))
-        MIN_OBJ_COVERED = 0.8
-        ASPECT_RATIO_RANGE = (0.75, 1.33)
+        MIN_OBJ_COVERED = 0.65
+        ASPECT_RATIO_RANGE = (0.5, 1.5)
         AREA_RANGE = (0.5, 1.0)
         OVERLAP_THRESH = 0.2
+        norm_boxes = tf.stack([boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]], axis = 1)
+        norm_boxes = norm_boxes/tf.to_float(tf.tile(tf.reshape(tf.shape(image)[:2], (1, 2)), (1, 2)))
         sample_distorted_bounding_box = tf.image.sample_distorted_bounding_box(
             tf.shape(image),
             bounding_boxes= tf.expand_dims(norm_boxes, 0),
@@ -146,7 +232,6 @@ class AugmenterGPU(object):
             use_image_if_no_bounding_boxes=True
         )
         begin, size, window = sample_distorted_bounding_box
-        print(begin.get_shape())
         image_crop = tf.slice(image, begin, size)
         window = tf.squeeze(window, axis=[0, 1])
         # remove boxes that are completely outside cropped image
@@ -246,7 +331,6 @@ class AugmenterGPU(object):
             boxes = tf.gather(boxes, valid_indices)
             return boxes, valid_indices
 
-
     def _prune_non_overlapping_boxes(self, boxes1, boxes2, min_overlap=0.0):
         """Prunes the boxes in boxes1 that overlap less than thresh with boxes2.
         For each box in boxes1, we want its IOA to be more than min_overlap with
@@ -269,7 +353,6 @@ class AugmenterGPU(object):
             keep_inds = tf.squeeze(tf.where(keep_bool), axis=1)
             boxes = tf.gather(boxes1, keep_inds)
             return boxes, keep_inds
-
 
     def _change_coordinate_frame(self, boxes, window):
         """Change coordinate frame of the boxes to be relative to window's frame.
@@ -297,8 +380,11 @@ class AugmenterGPU(object):
             boxes = tf.clip_by_value(boxes, clip_value_min=0.0, clip_value_max=1.0)
             return boxes
 
-
     def build_augment(self):
+        P_BOX_TRANSLATE = 0.7
+        P_BOX_SCALE = 0.7
+        P_BOX_TRANS_RATIO = 0.15
+        P_BOX_SCALE_RATIO = 0.2
         with tf.name_scope('augment'):
             self.image_in_padded = tf.placeholder(tf.float32, (self.size_out[0], self.size_out[1], 3))
             self.boxes_in_padded = tf.placeholder(tf.float32, (None, 4))
@@ -308,11 +394,13 @@ class AugmenterGPU(object):
             img, boxes, r_f_lr = self.random_flip_lr(img, boxes)
             img, boxes, r_f_ud = self.random_flip_ud(img, boxes)
             img, r_c_augs = self.random_color_mutation(img)
+            boxes = self.random_boxes_translate(boxes, P_BOX_TRANS_RATIO, P_BOX_TRANSLATE) # Jitter by max 0.2 of w, h
+            boxes = self.random_boxes_scale(boxes, P_BOX_SCALE_RATIO, P_BOX_SCALE) # Scale by max 0.2 of w, h
 
             self.params = {'ang': r_ang, 'flip_lr':r_f_lr, 'flip_ud':r_f_ud, 'color_augs':r_c_augs}
             self.image_out = img
             self.boxes_out = boxes
-    
+        
     def resize_images(self, imgs, boxes):
         DEBUG = False
         w_n, h_n = self.size_out
@@ -348,6 +436,10 @@ class AugmenterGPU(object):
         return np.array(img_out), boxes_out
  
     def correct_bboxes(self, box, w, h):
+        if box[0] < 0: box[0] = 0
+        if box[1] < 0: box[1] = 0
+        if box[2] > w: box[2] = w
+        if box[3] > h: box[3] = h
         if box[0] == box[2]:
             if box[2] == w - 1:
                 box[0] -= 1
@@ -361,6 +453,7 @@ class AugmenterGPU(object):
         return box
 
     def proc_boxes(self, boxes):
+        boxes = np.round(boxes)
         box_out = []
         for box in boxes.tolist():
             if box[0] >= box[2] and box[1] >= box[3]:
@@ -371,7 +464,7 @@ class AugmenterGPU(object):
     def augment_batch(self, imgs, lbls):
         imgs_crop = []
         boxes_crop = []
-        did_crop_l = []
+        pre_resize_params_l = []
         imgs_out = []
         boxes_out = []
         aug_out = []
@@ -381,11 +474,11 @@ class AugmenterGPU(object):
                 self.boxes_in: lbls[i]
             }
             post_crop = self.sess.run(self.post_crop, feed_dict = feed_dict)
-            img, boxes, did_crop = post_crop
+            img, boxes, pre_resize_params = post_crop
             imgs_crop.append(img)
             boxes_crop.append(boxes)
-            did_crop_l.append(did_crop)
-        imgs_crop, boxes_crop  = self.resize_images(imgs_crop, boxes_crop)
+            pre_resize_params_l.append(pre_resize_params)
+        imgs_crop, boxes_crop  = self.resize_images(imgs_crop, boxes_crop) # Resize to constant size (for input to NN)
         for i in range(len(imgs)):
             feed_dict = {
                 self.image_in_padded: np.squeeze(imgs_crop[i]), 
@@ -395,7 +488,8 @@ class AugmenterGPU(object):
                                                self.boxes_out, 
                                                self.params], feed_dict = feed_dict)
             params['id'] = i
-            params['r_crop'] = did_crop_l[i]
+            for key, val in pre_resize_params_l[i].items():
+                params[key] = val
             imgs_out.append(img)
             boxes_out.append(self.proc_boxes(boxes)) 
             aug_out.append(params)
