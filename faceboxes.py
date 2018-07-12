@@ -45,11 +45,11 @@ if __name__ == '__main__':
     model_name = 'facebox'
     PRINT_FREQ = 500
     TEST_FREQ = 1000
-    SAVE_FREQ = 5000
+    SAVE_FREQ = 10000
     BATCH_SIZE = 15
     IM_S = 1024
     IM_CHANNELS = 3
-    N_WORKERS = 12
+    N_WORKERS = 20
     MAX_PREBUFF_LIM = 20
     IOU_THRESH = 0.5
     USE_NORM = True
@@ -101,7 +101,7 @@ if __name__ == '__main__':
         print('Attempting to find a save file...')
         saver = tf.train.Saver(tf.global_variables(), max_to_keep=5, keep_checkpoint_every_n_hours=2)
         try:
-            ckpt = tf.train.get_checkpoint_state(save_f + model_name)
+            ckpt = tf.train.get_checkpoint_state(save_f)
             if ckpt is None:
                 raise IOError('No valid save file found')
             print('#####################')
