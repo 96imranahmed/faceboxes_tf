@@ -222,6 +222,7 @@ class AugmenterGPU(object):
         OVERLAP_THRESH = 0.3
         norm_boxes = tf.stack([boxes[:, 1], boxes[:, 0], boxes[:, 3], boxes[:, 2]], axis = 1)
         norm_boxes = norm_boxes/tf.to_float(tf.tile(tf.reshape(tf.shape(image)[:2], (1, 2)), (1, 2)))
+        norm_boxes = tf.clip_by_value(norm_boxes, 0.0, 1.0)
         sample_distorted_bounding_box = tf.image.sample_distorted_bounding_box(
             tf.shape(image),
             bounding_boxes= tf.expand_dims(norm_boxes, 0),
