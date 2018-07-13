@@ -92,13 +92,13 @@ def compute_mAP(imgs, true, preds, normalised = False):
         for box in true[i]:
             if DEBUG: print('Bt', box, np.tile((h, w), 2))
             if normalised: 
-                box = np.multiply(np.array(box),np.tile((h, w), 2))
+                box = np.multiply(np.array(box),np.tile((h, w), 2)[::-1])
             if DEBUG: print('At', box)
             cv2.rectangle(img_t, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)
         for box in preds[i]:
             if DEBUG: print('Bp', box, np.tile((h, w), 2))
             if normalised: 
-                box = np.multiply(np.array(box),np.tile((h, w), 2))
+                box = np.multiply(np.array(box),np.tile((h, w), 2)[::-1])
             if DEBUG: print('Ap',box)
             if not np.sum(np.array(box) < 0) > 0:
                 cv2.rectangle(img_p, (int(box[0]),int(box[1])), (int(box[2]), int(box[3])), color = 1, thickness = -1)

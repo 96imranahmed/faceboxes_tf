@@ -82,7 +82,7 @@ class DataService(object):
         boxes = [i['bbox'] for i in choices]
         if ret_raw:
             if self.normalised:
-                boxes = [np.array([i/np.tile(imgs[j].shape[:2], 2) for i in boxes[j]]) for j in range(len(boxes))]
+                boxes = [np.array([i/np.tile(imgs[j].shape[:2], 2)[::-1] for i in boxes[j]]) for j in range(len(boxes))]
             return imgs, boxes
         imgs_orig = imgs[:]
         boxes_orig = boxes[:]
@@ -95,8 +95,8 @@ class DataService(object):
         else:
             imgs, boxes = self.resize_images(imgs, boxes)
         if self.normalised:
-            boxes = [np.array([i/np.tile(imgs[j].shape[:2], 2) for i in boxes[j]]) for j in range(len(boxes))]
-            boxes_orig = [np.array([i/np.tile(imgs_orig[j].shape[:2], 2) for i in boxes_orig[j]]) for j in range(len(boxes_orig))]
+            boxes = [np.array([i/np.tile(imgs[j].shape[:2], 2)[::-1] for i in boxes[j]]) for j in range(len(boxes))]
+            boxes_orig = [np.array([i/np.tile(imgs_orig[j].shape[:2], 2)[::-1] for i in boxes_orig[j]]) for j in range(len(boxes_orig))]
         out_arr = []
         out_arr.append(np.array(imgs))
         out_arr.append(boxes)
