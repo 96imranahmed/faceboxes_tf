@@ -119,10 +119,10 @@ class FaceBox(object):
         global_step = tf.Variable(0, trainable=False)
         self.i_plus  = tf.assign(global_step, global_step+1)
 
-        boundaries = [80000, 100000]
+        boundaries = [120000.0, 200000.0]
         values = [0.001, 0.0001, 0.00001]
-
-        self.lr = tf.train.piecewise_constant(global_step, boundaries, values)
+        self.lr = tf.train.piecewise_constant(tf.to_float(global_step), boundaries, values, name = 'lr_select')
+        self.global_iter_val = [global_step, self.lr]
 
         DEBUG = True
         if DEBUG: print('Input shape: ', self.inputs.get_shape())
@@ -264,7 +264,6 @@ class FaceBox(object):
             loc_true = tf.reshape(loc_true, (self.batch_size , -1, 4))
             conf_true = tf.cast(tf.reshape(conf_true, (self.batch_size , -1)), tf.int32)
             conf_true_oh = tf.one_hot(conf_true, 2)
-            self.test = tf.Variable(0)
 
             positive_check = tf.reshape(tf.cast(tf.equal(conf_true, 1), tf.float32), (self.batch_size, self.anchor_len))
             pos_ids = tf.cast(positive_check, tf.bool)
@@ -272,7 +271,6 @@ class FaceBox(object):
 
             l1_loss = tf.losses.huber_loss(loc_preds, loc_true, reduction = tf.losses.Reduction.NONE) # Smoothed L1 loss
             l1_loss = positive_check * tf.reduce_sum(l1_loss, axis = -1) # Zero out L1 loss for negative boxes
-            self.test = (tf.boolean_mask(l1_loss, pos_ids), tf.boolean_mask(loc_preds, pos_ids), tf.boolean_mask(loc_true, pos_ids))
 
             # conf_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels = tf.squeeze(tf.to_int32(conf_true)), logits = conf_preds)
             conf_loss = tf.nn.softmax_cross_entropy_with_logits_v2(labels = conf_true_oh, logits = conf_preds)
@@ -289,19 +287,10 @@ class FaceBox(object):
             self.target_locs: locs,
             self.target_confs: confs
         }
-        pred_confs, pred_locs, summary, _, loss, _, tst = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus, self.test], feed_dict = feed_dict)
+        pred_confs, pred_locs, summary, _, loss, _, iter = self.sess.run([self.p_confs, self.out_locs, self.merged, self.train, self.loss, self.i_plus, self.global_iter_val], feed_dict = feed_dict)
         pred_boxes = anchors.decode_batch(anchors_vec, pred_locs, pred_confs)
         mAP = anchors.compute_mAP(imgs, lbls, pred_boxes, normalised= self.normalised)
-        LIM_TOP = 15
-        LIM_SM = 10
-        if loss > LIM_TOP:
-            tst_l, tst_p, tst_t = tst
-            print('###############')
-            print(pred_locs[0, [10, 20, 40, 60]])
-            print(tst_p[tst_l > LIM_SM])
-            print(tst_t[tst_l > LIM_SM])
-            print(tst_l[tst_l > LIM_SM])
-        print(np.sum(confs[0, :, 0] == 1), np.mean(pred_confs[0, :, 1]), np.mean(pred_confs[0, confs[0, :, 0] == 1, 1]),  'Loss:', loss, 'mAP:', mAP, 'Max:', np.max(pred_locs), 'Min:', np.min(pred_locs))
+        print('Iter:', iter[0], 'LR:', iter[1], 'Loss:', loss, 'mAP:', mAP, 'Max:', np.max(pred_locs), 'Min:', np.min(pred_locs))
         return pred_confs, pred_locs, loss, summary, mAP
     
     def test_iter(self, imgs):
