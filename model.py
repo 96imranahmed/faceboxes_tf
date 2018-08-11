@@ -119,7 +119,7 @@ class FaceBox(object):
         global_step = tf.Variable(0, trainable=False)
         self.i_plus  = tf.assign(global_step, global_step+1)
 
-        boundaries = [120000.0, 200000.0]
+        boundaries = [200000.0, 400000.0]
         values = [0.001, 0.0001, 0.00001]
         self.lr = tf.train.piecewise_constant(tf.to_float(global_step), boundaries, values, name = 'lr_select')
         self.global_iter_val = [global_step, self.lr]
@@ -231,7 +231,8 @@ class FaceBox(object):
         tf.summary.scalar('Loss', self.loss)
         self.extra_update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(self.extra_update_ops):
-            self.train = tf.train.MomentumOptimizer(self.lr, momentum = 0.9, use_nesterov = True).minimize(self.loss)
+            self.train = tf.train.AdamOptimizer(self.lr, epsilon = 0.1).minimize(self.loss)
+            # self.train = tf.train.MomentumOptimizer(self.lr, momentum = 0.9, use_nesterov = True).minimize(self.loss)
         self.merged = tf.summary.merge_all()
 
     def hard_negative_mining(self, conf_loss, pos_ids, mult = 3, min_negs = 1):
