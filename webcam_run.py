@@ -64,7 +64,7 @@ def main(argv):
             frame_padded = lighting_balance(frame)
             frame_padded = cv2.copyMakeBorder(frame, 0, HEIGHT_DES - frame.shape[0], 0, 0, cv2.BORDER_CONSTANT, value=(0,0,0))
             pred_confs, pred_locs = model.test_iter(np.expand_dims(frame_padded, axis = 0))
-            pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs, min_conf=0.5)[0]
+            pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs, min_conf=0.25)[0]
             pred_boxes[pred_boxes < 0] = 0
             pred_boxes[:, [0, 2]][pred_boxes[:, [0, 2]] > WIDTH_DES] = WIDTH_DES
             pred_boxes[:, [1, 3]][pred_boxes[:, [1, 3]] > HEIGHT_DES] = HEIGHT_DES 
