@@ -235,7 +235,7 @@ class FaceBox(object):
             # self.train = tf.train.MomentumOptimizer(self.lr, momentum = 0.9, use_nesterov = True).minimize(self.loss)
         self.merged = tf.summary.merge_all()
 
-    def hard_negative_mining(self, conf_loss, pos_ids, mult = 3, min_negs = 1):
+    def hard_negative_mining(self, conf_loss, pos_ids, mult = 3, min_negs = 5):
         with tf.name_scope('hard_negative_mining') as scope:
             pos_ids = tf.unstack(pos_ids)
             neg_ids = [tf.logical_not(p) for p in pos_ids]

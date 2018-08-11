@@ -83,6 +83,11 @@ def compute_mAP(imgs, true, preds, normalised = False):
     DEBUG = False
     mAP = []
     for i in range(len(imgs)):
+        if len(true[i]) == 0:
+            if len(preds[i]) > 0:
+                mAP.append(0.0)
+            else:
+                continue
         i_c = np.squeeze(imgs[i]).shape
         h,w, _ = i_c
         img_t = np.zeros((i_c[0], i_c[1], 1))
@@ -106,7 +111,10 @@ def compute_mAP(imgs, true, preds, normalised = False):
         im_out += img_p
         if np.sum(im_out > 0) > 0:
             mAP.append(np.sum(im_out == 2)/np.sum(im_out > 0))
-    return np.mean(mAP)
+    if len(mAP) > 0:
+        return np.mean(mAP)
+    else:
+        return 1.0
 
 def compute_iou_np(bboxes1, bboxes2):
     # Extracted from: https://medium.com/@venuktan/vectorized-intersection-over-union-iou-in-numpy-and-tensor-flow-4fa16231b63d
