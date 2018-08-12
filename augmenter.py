@@ -404,7 +404,9 @@ class AugmenterGPU(object):
             boxes = self.random_boxes_translate(boxes, P_BOX_TRANS_RATIO, P_BOX_TRANSLATE) # Jitter by max 0.2 of w, h
             boxes = self.random_boxes_scale(boxes, P_BOX_SCALE_RATIO, P_BOX_SCALE) # Scale by max 0.2 of w, h
 
-            self.params = {'ang': r_ang, 'flip_lr':r_f_lr, 'flip_ud':r_f_ud, 'color_augs':r_c_augs}
+            self.params = {'flip_lr':r_f_lr, 'flip_ud':r_f_ud, 'color_augs':r_c_augs}
+            if DO_ROTATE: 
+                self.params['r_ang'] = r_ang
             self.image_out = img
             self.boxes_out = boxes
         
