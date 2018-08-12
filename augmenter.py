@@ -200,7 +200,7 @@ class AugmenterGPU(object):
     def build_random_crop(self):
         P_SHOULD_CROP = 0.8
         P_SHOULD_SCALE = 0.7
-        SCALE_MIN, SCALE_MAX = 0.75, 1.5
+        SCALE_MIN, SCALE_MAX = 0.80, 1.3
         with tf.name_scope('crop'):
             self.image_in = tf.placeholder(tf.float32, (None, None, 3))
             self.boxes_in = tf.placeholder(tf.float32, (None, 4))
@@ -390,14 +390,16 @@ class AugmenterGPU(object):
         P_BOX_SCALE = 0.7
         P_BOX_TRANS_RATIO = 0.1
         P_BOX_SCALE_RATIO = 0.15
+        DO_ROTATE = False
         with tf.name_scope('augment'):
             self.image_in_padded = tf.placeholder(tf.float32, (self.size_out[0], self.size_out[1], 3))
             self.boxes_in_padded = tf.placeholder(tf.float32, (None, 4))
             img, boxes = self.image_in_padded, self.boxes_in_padded
-
-            img, boxes, r_ang = self.random_rotate(img, boxes)
+            if DO_ROTATE:
+                img, boxes, r_ang = self.random_rotate(img, boxes)
             img, boxes, r_f_lr = self.random_flip_lr(img, boxes)
-            img, boxes, r_f_ud = self.random_flip_ud(img, boxes)
+            if DO_ROTATE:
+                img, boxes, r_f_ud = self.random_flip_ud(img, boxes)
             img, r_c_augs = self.random_color_mutation(img)
             boxes = self.random_boxes_translate(boxes, P_BOX_TRANS_RATIO, P_BOX_TRANSLATE) # Jitter by max 0.2 of w, h
             boxes = self.random_boxes_scale(boxes, P_BOX_SCALE_RATIO, P_BOX_SCALE) # Scale by max 0.2 of w, h
