@@ -6,6 +6,7 @@ import anchors
 import pickle
 import data
 import numpy as np
+import os
 
 def lighting_balance(img):
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
@@ -32,8 +33,9 @@ def main(argv):
     boxes_vec, boxes_lst, stubs = anchors.get_boxes(ANCHOR_CONFIG, normalised = USE_NORM)
 
     # Setup tensorflow and model
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # Force on CPU
+    os.environ['CUDA_VISIBLE_DEVICES'] = '-1' # Force on CPU
     config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
     tf.reset_default_graph()
     with tf.Session(config=config) as sess:
         model = FaceBox(sess, (BATCH_SIZE, WIDTH_DES, HEIGHT_DES, IM_CHANNELS), boxes_vec, normalised = USE_NORM)
