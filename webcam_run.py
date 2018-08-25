@@ -25,6 +25,7 @@ def main(argv):
     IM_CHANNELS = 3
     BATCH_SIZE = 1
     USE_NORM = True
+    UPSCALE = False
     ANCHOR_CONFIG = [[1024, 1024, 32, 32, 32, 32, 4], 
             [1024, 1024, 32, 32, 64, 64, 2],
             [1024, 1024, 32, 32, 128, 128, 1],
@@ -60,13 +61,20 @@ def main(argv):
         #Loop through video data
         while (ret == True):
             ret, frame = vid_in.read()
-            r = WIDTH_DES / frame.shape[1]
-            dim_des = (int(WIDTH_DES), int(frame.shape[0] * r))
-            frame = cv2.resize(frame, dim_des, interpolation = cv2.INTER_LANCZOS4)
+            if UPSCALE:
+                r = WIDTH_DES*2 / frame.shape[1]
+                dim_des = (int(WIDTH_DES*2), int(frame.shape[0] * r))
+                frame = cv2.resize(frame, dim_des, interpolation = cv2.INTER_LANCZOS4)
+                c_shp = frame.shape
+                frame = frame[int(c_shp[0]/4):-int(c_shp[0]/4),int((c_shp[1] - WIDTH_DES)/2):-int((c_shp[1] - WIDTH_DES)/2)]
+            else:
+                r = WIDTH_DES / frame.shape[1]
+                dim_des = (int(WIDTH_DES), int(frame.shape[0] * r))
+                frame = cv2.resize(frame, dim_des, interpolation = cv2.INTER_LANCZOS4)        
             frame_padded = lighting_balance(frame)
             frame_padded = cv2.copyMakeBorder(frame, 0, HEIGHT_DES - frame.shape[0], 0, 0, cv2.BORDER_CONSTANT, value=(0,0,0))
             pred_confs, pred_locs = model.test_iter(np.expand_dims(frame_padded, axis = 0))
-            pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs, min_conf=0.25)[0]
+            pred_boxes = anchors.decode_batch(boxes_vec, pred_locs, pred_confs, min_conf=0.3)[0]
             pred_boxes[pred_boxes < 0] = 0
             pred_boxes[:, [0, 2]][pred_boxes[:, [0, 2]] > WIDTH_DES] = WIDTH_DES
             pred_boxes[:, [1, 3]][pred_boxes[:, [1, 3]] > HEIGHT_DES] = HEIGHT_DES 
