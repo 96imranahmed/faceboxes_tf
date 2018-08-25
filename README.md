@@ -18,7 +18,7 @@ Note, the repository is structured as follows:
  
  ## Key Takeaways
  
- - This model/approach **really** struggles with small faces. That being said, modifications to the anchor densification strategy + other tweaks may result in a model that can handle this (without too much of a loss in CPU speed).
+ - This model/approach **really** struggles with small faces. That being said, modifications to the anchor densification strategy + other tweaks may result in a model that can handle this (without too much of a loss in FPS).
  - For more complicated objects (i.e. cars), the model may need to include more parameters (i.e. more features at each conv-layer) - again, at the slight expense of speed.
  - This is definitely a good baseline for CPU based computation with deep learning, but changes are needed to really make this stand-out over traditional systems (such as pico) in face-detection. That being said, because of the nature of the transferability of architectures to different learning domain, this model can be easily adapted to other scenarios. 
  - There are a **lot** of hyperparameters to tune - this can definitely be done more efficiently than my preliminary search. Please do  let me know if you tune things yourself and find a better strategy with the same code (and feel free to push changes).  
