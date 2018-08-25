@@ -6,6 +6,8 @@ On the CPU on my home computer, I get an average of ~8fps using this model, whic
 
 A sample semi-trained face-model (that was verified to work on my home webcam) can be found in `~/models/` - feel free to use that as a baseline to start training. If necessary, you may need to tweak the piecewise constant values in `model.py` to adjust your learning rate to the desired value.
 
+#### NOTE: MAP calculations in this implementation may not be entirely correct as I was confused as to how to calculate MAP across a batch where some images have no objects. If you can propose a fix to the function/the methodology I use, I would be grateful! :)
+
  ## Repository Information
 Note, the repository is structured as follows:
 
