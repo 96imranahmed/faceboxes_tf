@@ -1,0 +1,3 @@
+model_checkpoint_path: "facebox"
+all_model_checkpoint_paths: "facebox"
+
